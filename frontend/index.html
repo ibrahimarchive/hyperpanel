@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HyperPanel — Modern Server Control Panel">
+    <title>Login — HyperPanel</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/css/variables.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/pages.css">
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="login-logo">
+                        <div class="login-logo-icon">H</div>
+                    </div>
+                    <h1 class="login-title">HyperPanel</h1>
+                    <p class="login-subtitle">Sign in to your server control panel</p>
+                </div>
+
+                <!-- Primary Credentials Step -->
+                <div id="step-credentials">
+                    <form id="login-form" autocomplete="on">
+                        <div class="form-group">
+                            <label class="form-label" for="username">Username</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                id="username"
+                                name="username"
+                                placeholder="Enter your username"
+                                autocomplete="username"
+                                required
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="password">Password</label>
+                            <input
+                                type="password"
+                                class="form-input"
+                                id="password"
+                                name="password"
+                                placeholder="Enter your password"
+                                autocomplete="current-password"
+                                required
+                            >
+                        </div>
+
+                        <div id="login-error" class="form-error" style="display:none; margin-bottom: var(--space-4); text-align: center;"></div>
+
+                        <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: var(--space-2);" id="login-btn">
+                            <span id="login-btn-text">Sign In</span>
+                            <div id="login-spinner" class="spinner" style="display:none; border-color: rgba(255,255,255,0.3); border-top-color: white;"></div>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- 2FA / TOTP Challenge Step -->
+                <div id="step-2fa" style="display:none">
+                    <form id="totp-form">
+                        <div style="text-align:center;margin-bottom:var(--space-4)">
+                            <div style="font-size:36px;margin-bottom:var(--space-2)">🔐</div>
+                            <h3 style="font-size:var(--text-lg);font-weight:var(--font-semibold);margin-bottom:4px">Two-Factor Authentication</h3>
+                            <p style="font-size:var(--text-xs);color:var(--text-secondary)">Enter the 6-digit code from your authenticator app</p>
+                        </div>
+                        <div class="form-group">
+                            <input
+                                type="text"
+                                class="form-input"
+                                id="totp-code"
+                                placeholder="000000"
+                                maxlength="6"
+                                inputmode="numeric"
+                                pattern="[0-9]*"
+                                style="text-align:center;letter-spacing:6px;font-size:var(--text-xl);font-weight:var(--font-bold)"
+                                autocomplete="one-time-code"
+                                required
+                            >
+                        </div>
+                        <div id="totp-error" class="form-error" style="display:none; margin-bottom: var(--space-4); text-align: center;"></div>
+                        <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: var(--space-2);" id="totp-btn">
+                            <span id="totp-btn-text">Verify & Sign In</span>
+                            <div id="totp-spinner" class="spinner" style="display:none; border-color: rgba(255,255,255,0.3); border-top-color: white;"></div>
+                        </button>
+                        <div style="text-align:center;margin-top:var(--space-3)">
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="cancel2Fa()">Back to Login</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="login-footer">
+                    <p>HyperPanel v1.0.0 — Server Control Panel</p>
+                </div>
+            </div>
+
+            <!-- Theme toggle on login page -->
+            <div style="text-align: center; margin-top: var(--space-4);">
+                <button id="login-theme-toggle" class="btn btn-ghost btn-sm" onclick="toggleTheme()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                    <span>Toggle Theme</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Apply saved theme
+        const savedTheme = localStorage.getItem('hyperpanel-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('hyperpanel-theme', next);
+        }
+
+        // Check if already logged in
+        const token = localStorage.getItem('hyperpanel-token');
+        if (token) {
+            window.location.href = '/';
+        }
+
+        let _tempToken2Fa = null;
+
+        function cancel2Fa() {
+            _tempToken2Fa = null;
+            document.getElementById('step-credentials').style.display = 'block';
+            document.getElementById('step-2fa').style.display = 'none';
+            document.getElementById('login-error').style.display = 'none';
+        }
+
+        // Login form handler
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('login-btn');
+            const btnText = document.getElementById('login-btn-text');
+            const spinner = document.getElementById('login-spinner');
+            const errorEl = document.getElementById('login-error');
+
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'block';
+            errorEl.style.display = 'none';
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    if (data.require_2fa) {
+                        _tempToken2Fa = data.temp_token;
+                        document.getElementById('step-credentials').style.display = 'none';
+                        document.getElementById('step-2fa').style.display = 'block';
+                        document.getElementById('totp-code').value = '';
+                        document.getElementById('totp-error').style.display = 'none';
+                        setTimeout(() => document.getElementById('totp-code').focus(), 100);
+                    } else {
+                        localStorage.setItem('hyperpanel-token', data.access_token);
+                        localStorage.setItem('hyperpanel-refresh', data.refresh_token);
+                        window.location.href = '/';
+                    }
+                } else {
+                    errorEl.textContent = data.detail || 'Invalid credentials';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Connection error. Is the server running?';
+                errorEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btnText.style.display = 'inline';
+                spinner.style.display = 'none';
+            }
+        });
+
+        // 2FA challenge form handler
+        document.getElementById('totp-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('totp-btn');
+            const btnText = document.getElementById('totp-btn-text');
+            const spinner = document.getElementById('totp-spinner');
+            const errorEl = document.getElementById('totp-error');
+
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'block';
+            errorEl.style.display = 'none';
+
+            const code = document.getElementById('totp-code').value.trim();
+
+            try {
+                const res = await fetch('/api/auth/login/2fa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ temp_token: _tempToken2Fa, code }),
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    localStorage.setItem('hyperpanel-token', data.access_token);
+                    localStorage.setItem('hyperpanel-refresh', data.refresh_token);
+                    window.location.href = '/';
+                } else {
+                    errorEl.textContent = data.detail || 'Invalid verification code';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Connection error. Is the server running?';
+                errorEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btnText.style.display = 'inline';
+                spinner.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

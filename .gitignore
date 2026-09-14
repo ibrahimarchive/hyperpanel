@@ -1,0 +1,63 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+backend/venv/
+
+# Environment Variables & Secrets (Keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# SQLite Databases & Local Storage
+*.db
+*.sqlite
+*.sqlite3
+hyperpanel.db
+backend/hyperpanel.db
+
+# Logs & Runtime
+*.log
+logs/
+run/
+
+# Editor & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local backups
+backups/
+*.bak
+
+# SSL certificates and keys generated locally
+ssl/
+backend/ssl/
+*.crt
+*.key
+*.csr
+
+# Local panel runtime settings
+backend/panel_settings.json
+panel_settings.json
+
+# Planning folder
+plan/

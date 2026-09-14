@@ -1,0 +1,103 @@
+/* ══════════════════════════════════════════════════════════════
+   HyperPanel — Theme Definitions (Dark + Light)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Dark Theme (Default) ─────────────────────────────────── */
+[data-theme="dark"] {
+    --bg-primary:    #0f1117;
+    --bg-secondary:  #161922;
+    --bg-tertiary:   #1c1f2e;
+    --bg-elevated:   #222639;
+    --bg-hover:      #272b3d;
+    --bg-active:     #2d3250;
+
+    --surface:       #1a1d2e;
+    --surface-hover: #222539;
+    --surface-border:#2a2d3e;
+
+    --text-primary:   #f1f3f9;
+    --text-secondary: #a1a7c4;
+    --text-tertiary:  #6b7194;
+    --text-muted:     #4a4f6a;
+    --text-inverse:   #0f1117;
+
+    --border:         #2a2d3e;
+    --border-subtle:  #23263a;
+    --border-strong:  #3a3d52;
+
+    --input-bg:       #161922;
+    --input-border:   #2a2d3e;
+    --input-focus:    var(--accent-500);
+
+    --sidebar-bg:     #0c0e16;
+    --sidebar-border: #1a1d2e;
+    --sidebar-hover:  #161922;
+    --sidebar-active: #1c1f2e;
+
+    --topbar-bg:      rgba(15, 17, 23, 0.85);
+    --topbar-border:  #1a1d2e;
+
+    --card-bg:        #161922;
+    --card-border:    #222539;
+    --card-shadow:    0 2px 8px rgba(0, 0, 0, 0.3);
+
+    --modal-overlay:  rgba(0, 0, 0, 0.6);
+    --modal-bg:       #1a1d2e;
+
+    --scrollbar-thumb: #2a2d3e;
+    --scrollbar-track: #0f1117;
+
+    --code-bg:        #0d0f17;
+
+    color-scheme: dark;
+}
+
+/* ── Light Theme ──────────────────────────────────────────── */
+[data-theme="light"] {
+    --bg-primary:    #f8f9fc;
+    --bg-secondary:  #ffffff;
+    --bg-tertiary:   #f1f3f8;
+    --bg-elevated:   #ffffff;
+    --bg-hover:      #f1f3f8;
+    --bg-active:     #e8ebf4;
+
+    --surface:       #ffffff;
+    --surface-hover: #f5f6fa;
+    --surface-border:#e5e7ef;
+
+    --text-primary:   #111827;
+    --text-secondary: #4b5563;
+    --text-tertiary:  #6b7280;
+    --text-muted:     #9ca3af;
+    --text-inverse:   #ffffff;
+
+    --border:         #e5e7ef;
+    --border-subtle:  #f1f3f8;
+    --border-strong:  #d1d5e0;
+
+    --input-bg:       #ffffff;
+    --input-border:   #d1d5e0;
+    --input-focus:    var(--accent-500);
+
+    --sidebar-bg:     #ffffff;
+    --sidebar-border: #e5e7ef;
+    --sidebar-hover:  #f5f6fa;
+    --sidebar-active: #eef2ff;
+
+    --topbar-bg:      rgba(255, 255, 255, 0.85);
+    --topbar-border:  #e5e7ef;
+
+    --card-bg:        #ffffff;
+    --card-border:    #e5e7ef;
+    --card-shadow:    0 1px 3px rgba(0, 0, 0, 0.08);
+
+    --modal-overlay:  rgba(0, 0, 0, 0.3);
+    --modal-bg:       #ffffff;
+
+    --scrollbar-thumb: #d1d5e0;
+    --scrollbar-track: #f8f9fc;
+
+    --code-bg:        #f5f6fa;
+
+    color-scheme: light;
+}

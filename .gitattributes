@@ -1,0 +1,28 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Enforce LF endings on shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Explicitly declare text files you want to always be normalized and converted to native line endings on checkout
+*.py text
+*.html text
+*.css text
+*.js text
+*.json text
+*.md text
+*.svg text
+*.example text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.db binary

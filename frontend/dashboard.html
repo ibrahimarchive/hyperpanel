@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HyperPanel — Modern Server Control Panel Dashboard">
+    <title>HyperPanel</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/css/variables.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/pages.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+</head>
+<body>
+    <div class="app-shell" id="app-shell">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="#/dashboard" class="sidebar-logo">
+                    <div class="sidebar-logo-icon">H</div>
+                    <span class="sidebar-logo-text">HyperPanel</span>
+                </a>
+            </div>
+
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Navigation items are rendered by JS -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="nav-item" id="sidebar-collapse-btn" title="Collapse Sidebar">
+                    <span class="nav-item-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+                    </span>
+                    <span class="nav-item-label">Collapse</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-area">
+            <!-- Topbar -->
+            <header class="topbar" id="topbar">
+                <div class="topbar-left">
+                    <button class="topbar-toggle" id="topbar-menu-toggle" title="Toggle Sidebar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                    </button>
+                    <div class="topbar-breadcrumb" id="topbar-breadcrumb">
+                        <span>Dashboard</span>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <div class="topbar-search">
+                        <svg class="topbar-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                        <input type="text" placeholder="Search... (Ctrl+K)" id="search-input">
+                    </div>
+
+                    <!-- Theme toggle -->
+                    <button class="topbar-btn" id="theme-toggle" title="Toggle Theme">
+                        <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                        <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                    </button>
+
+                    <!-- Notifications -->
+                    <button class="topbar-btn" id="notifications-btn" title="Notifications">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+                        <span class="badge" id="notification-badge"></span>
+                    </button>
+
+                    <!-- User menu -->
+                    <div class="topbar-user dropdown" id="user-dropdown">
+                        <div class="topbar-user-info">
+                            <div class="topbar-user-name" id="user-display-name">Admin</div>
+                            <div class="topbar-user-role" id="user-display-role">Administrator</div>
+                        </div>
+                        <div class="topbar-avatar" id="user-avatar">A</div>
+
+                        <div class="dropdown-menu">
+                            <div class="dropdown-item" onclick="window.location.hash='#/settings'">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                                Settings
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-item" onclick="logout()" style="color: var(--danger-400)">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                                Sign Out
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="content-area" id="content-area">
+                <div class="content-wrapper" id="page-content">
+                    <!-- Pages are rendered here by the router -->
+                    <div style="display:flex;align-items:center;justify-content:center;height:60vh;">
+                        <div class="spinner spinner-lg"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Modal Container -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Modal</h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-footer" id="modal-footer"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/theme.js"></script>
+    <script src="/js/toast.js"></script>
+    <script src="/js/modal.js"></script>
+    <script src="/js/router.js"></script>
+    <script src="/js/pages/dashboard.js"></script>
+    <script src="/js/pages/websites.js"></script>
+    <script src="/js/pages/databases.js"></script>
+    <script src="/js/pages/domains.js"></script>
+    <script src="/js/pages/dns.js"></script>
+    <script src="/js/pages/ssl.js"></script>
+    <script src="/js/pages/email.js"></script>
+    <script src="/js/pages/ftp.js"></script>
+    <script src="/js/pages/files.js"></script>
+    <script src="/js/pages/docker.js"></script>
+    <script src="/js/pages/firewall.js"></script>
+    <script src="/js/pages/monitoring.js"></script>
+    <script src="/js/pages/backups.js"></script>
+    <script src="/js/pages/cron.js"></script>
+    <script src="/js/pages/services.js"></script>
+    <script src="/js/pages/processes.js"></script>
+    <script src="/js/pages/logs.js"></script>
+    <script src="/js/pages/fail2ban.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
+    <script src="/js/pages/terminal.js"></script>
+    <script src="/js/pages/activity.js"></script>
+    <script src="/js/pages/users.js"></script>
+    <script src="/js/pages/settings.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
