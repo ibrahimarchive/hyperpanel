@@ -18,10 +18,24 @@ class DatabaseService:
     """Manages MySQL/MariaDB databases and users."""
 
     async def _run_mysql_query(self, sql: str) -> CommandResult:
-        """Execute a MySQL query reliably via sudo mysql."""
-        escaped_sql = sql.replace("'", "'\\''")
-        cmd = f"mysql -e '{escaped_sql}'"
-        return await run_sudo(cmd, shell=True)
+        """Execute a MySQL query reliably via a temp file piped to sudo mysql."""
+        tmp_path = None
+        try:
+            fd, tmp_path = tempfile.mkstemp(prefix="hp_sql_", suffix=".sql")
+            with os.fdopen(fd, "w") as f:
+                f.write(sql)
+            cmd = f"mysql < {tmp_path}"
+            result = await run_sudo(cmd, shell=True)
+            return result
+        except Exception as e:
+            logger.error(f"MySQL query execution failed: {e}")
+            return CommandResult(returncode=-1, stdout="", stderr=str(e), success=False)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
 
     async def create_database(
         self, name: str, charset: str = "utf8mb4", collation: str = "utf8mb4_unicode_ci"
@@ -49,12 +63,14 @@ class DatabaseService:
             f"SELECT SUM(data_length + index_length) "
             f"FROM information_schema.tables WHERE table_schema = '{name}';"
         )
-        escaped_sql = sql.replace("'", "'\\''")
-        cmd = f"mysql -N -e '{escaped_sql}'"
-        result = await run_sudo(cmd, shell=True)
+        result = await self._run_mysql_query(sql)
         if result.success and result.output and result.output != "NULL":
             try:
-                return int(float(result.output))
+                # Output may contain column header; grab the last numeric line
+                for line in reversed(result.output.strip().split("\n")):
+                    line = line.strip()
+                    if line and line != "NULL":
+                        return int(float(line))
             except ValueError:
                 return 0
         return 0
@@ -64,7 +80,7 @@ class DatabaseService:
         result = await self._run_mysql_query("SHOW DATABASES;")
         if result.success:
             system_dbs = {"information_schema", "mysql", "performance_schema", "sys", "Database"}
-            return [db.strip() for db in result.stdout.split("\n") if db.strip() and db.strip() not in system_dbs]
+            return [db.strip() for db in result.output.split("\n") if db.strip() and db.strip() not in system_dbs]
         return []
 
     async def create_user(

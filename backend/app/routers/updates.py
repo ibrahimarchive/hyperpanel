@@ -49,4 +49,6 @@ async def apply_update(
         resource_type="system",
         resource_name="hyperpanel",
     ))
+    await db.commit()
+
     return result

@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import secrets
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -33,8 +34,9 @@ class WordPressService:
         return combined[:max_len]
 
     def _generate_salt(self) -> str:
-        """Generate a secure salt string for wp-config.php."""
-        chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_ []{}<>~`+=,.;:/?|"
+        """Generate a secure salt string for wp-config.php (heredoc/PHP safe)."""
+        # Exclude chars that break heredocs ($, ', ", \, `) and PHP string delimiters
+        chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^&*()-_[]{}<>~+=,.;:/?|"
         return "".join(secrets.choice(chars) for _ in range(64))
 
     def _render_wp_config(
@@ -213,13 +215,15 @@ require_once ABSPATH . 'wp-settings.php';
             )
             wp_config_file = doc_root / "wp-config.php"
             try:
-                cat_cmd = f"bash -c 'cat > {wp_config_file} << \"WPEOF\"\n{wp_config_content}\nWPEOF'"
-                await run_sudo(cat_cmd, shell=True)
-            except Exception:
-                try:
-                    wp_config_file.write_text(wp_config_content, encoding="utf-8")
-                except Exception as e:
-                    logger.error(f"Failed to write wp-config.php: {e}")
+                # Write to a temp file first, then move into place to avoid heredoc escaping issues
+                fd, tmp_path = tempfile.mkstemp(prefix="wp_config_", suffix=".php")
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(wp_config_content)
+                await run_sudo(f"cp {tmp_path} {wp_config_file}", shell=True)
+                await run_sudo(f"chmod 644 {wp_config_file}")
+                os.remove(tmp_path)
+            except Exception as e:
+                logger.error(f"Failed to write wp-config.php: {e}")
 
         # 4. Fix permissions
         await run_sudo(f"chown -R www-data:www-data {doc_root}")

@@ -195,6 +195,10 @@ phpinfo();
         key_path: str,
         chain_path: Optional[str] = None,
         force_https: bool = True,
+        site_type: str = "php",
+        php_version: str = "8.2",
+        proxy_port: Optional[int] = None,
+        proxy_address: str = "127.0.0.1",
     ) -> dict:
         """Update a site's Nginx config to include SSL."""
         config = render_template(
@@ -207,6 +211,10 @@ phpinfo();
             key_path=key_path,
             chain_path=chain_path,
             force_https=force_https,
+            site_type=site_type,
+            php_version=php_version,
+            proxy_port=proxy_port,
+            proxy_address=proxy_address,
         )
 
         config_path = self.sites_available / f"{domain}.conf"

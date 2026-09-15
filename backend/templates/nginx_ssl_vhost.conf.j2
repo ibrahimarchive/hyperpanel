@@ -45,18 +45,43 @@ server {
     # Deny access to hidden files
     location ~ /\. {
         deny all;
+        access_log off;
+        log_not_found off;
     }
 
+    {% if site_type == "php" %}
     # PHP processing
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
     location ~ \.php$ {
-        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+        fastcgi_pass unix:/run/php/php{{ php_version }}-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
     }
+    {% elif site_type == "nodejs" or site_type == "python" or site_type == "reverse_proxy" %}
+    # Reverse proxy
+    location / {
+        proxy_pass http://{{ proxy_address }}:{{ proxy_port }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+    }
+    {% else %}
+    # Static site
+    location / {
+        try_files $uri $uri/ =404;
+    }
+    {% endif %}
 
     # Static assets
     location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {

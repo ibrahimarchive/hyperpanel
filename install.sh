@@ -1,7 +1,7 @@
 #!/bin/bash
 # ══════════════════════════════════════════════════════════════
 # HyperPanel — Automated 1-Command Installation Script
-# Supports Ubuntu 22.04 / 24.04 LTS & Debian 11 / 12
+# Supports Ubuntu 22.04 / 24.04 LTS & Debian 11 / 12 / 13
 # ══════════════════════════════════════════════════════════════
 
 set -eo pipefail

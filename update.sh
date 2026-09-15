@@ -65,9 +65,11 @@ chmod +x install.sh update.sh 2>/dev/null || true
 
 echo -e "\n${CYAN}[3/4] Updating Python dependencies & database...${NC}"
 if [ -d "$PANEL_DIR/backend/venv" ]; then
-    ./backend/venv/bin/pip install -r backend/requirements.txt -q
-    ./backend/venv/bin/python3 -c "import asyncio; from app.database import init_db; asyncio.run(init_db())" 2>/dev/null || true
-    ./backend/venv/bin/python3 -c "import asyncio; from app.services.panel_settings_service import panel_settings_service; asyncio.run(panel_settings_service.sync_nginx_config())" 2>/dev/null || true
+    cd "$PANEL_DIR/backend"
+    ./venv/bin/pip install -r requirements.txt -q
+    ./venv/bin/python3 -c "import asyncio; from app.database import init_db; asyncio.run(init_db())" 2>/dev/null || true
+    ./venv/bin/python3 -c "import asyncio; from app.services.panel_settings_service import panel_settings_service; asyncio.run(panel_settings_service.sync_nginx_config())" 2>/dev/null || true
+    cd "$PANEL_DIR"
 fi
 
 echo -e "\n${CYAN}[4/4] Reloading Nginx and restarting HyperPanel service...${NC}"

@@ -157,17 +157,19 @@ git checkout -B "{tag}" "tags/{tag}" 2>/dev/null || git checkout -B "{tag}" "{ta
 # Make sure scripts remain executable
 chmod +x install.sh update.sh 2>/dev/null || true
 
-# Update Python dependencies
+# Update Python dependencies (must run from backend dir)
 if [ -f "backend/requirements.txt" ] && [ -d "backend/venv" ]; then
     echo "Updating dependencies..."
-    ./backend/venv/bin/pip install -r backend/requirements.txt -q
+    cd backend
+    ./venv/bin/pip install -r requirements.txt -q
 fi
 
-# Pre-initialize DB migrations and sync Nginx proxy
-if [ -d "backend/venv" ]; then
-    ./backend/venv/bin/python3 -c "import asyncio; from app.database import init_db; asyncio.run(init_db())" 2>/dev/null || true
-    ./backend/venv/bin/python3 -c "import asyncio; from app.services.panel_settings_service import panel_settings_service; asyncio.run(panel_settings_service.sync_nginx_config())" 2>/dev/null || true
+# Pre-initialize DB migrations and sync Nginx proxy (must run from backend dir)
+if [ -d "venv" ]; then
+    ./venv/bin/python3 -c "import asyncio; from app.database import init_db; asyncio.run(init_db())" 2>/dev/null || true
+    ./venv/bin/python3 -c "import asyncio; from app.services.panel_settings_service import panel_settings_service; asyncio.run(panel_settings_service.sync_nginx_config())" 2>/dev/null || true
 fi
+cd "{panel_path}" 2>/dev/null || cd /opt/hyperpanel 2>/dev/null || true
 
 echo "Reloading Nginx and restarting HyperPanel service..."
 nginx -t && systemctl reload nginx 2>/dev/null || true
