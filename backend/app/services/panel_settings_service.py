@@ -346,7 +346,7 @@ server {{
         return self.get_certificate_info()
 
     async def set_panel_domain(self, domain: str) -> dict:
-        """Set or clear the domain bound to the panel."""
+        """Set or clear the domain bound to the panel and attempt automatic Let's Encrypt SSL issuance."""
         domain = domain.strip().lower()
         if domain:
             if not re.match(r"^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$", domain) and domain != "localhost":
@@ -355,12 +355,40 @@ server {{
         self._data["panel_domain"] = domain
         self._save_settings()
         self._update_env_file({"PANEL_DOMAIN": domain})
+
+        le_success = False
+        le_error = None
+
+        if domain and domain != "localhost":
+            # Attempt automatic Let's Encrypt certificate issuance
+            logger.info(f"Attempting automatic Let's Encrypt SSL issuance for panel domain '{domain}'")
+            le_res = await self.issue_letsencrypt_panel()
+            if le_res.get("success"):
+                le_success = True
+            else:
+                le_error = le_res.get("error")
+                # Fallback to self-signed cert if LE fails (e.g., DNS not propagated yet)
+                cert_path = Path(self._data.get("ssl_cert_path", str(SSL_DIR / "panel.crt")))
+                if not cert_path.exists() or cert_path.stat().st_size == 0:
+                    self.generate_self_signed_cert(domain=domain)
+
         await self.sync_nginx_config()
+
+        if domain:
+            if le_success:
+                msg = f"Panel domain set to '{domain}' and Let's Encrypt SSL certificate issued successfully!"
+            elif le_error:
+                msg = f"Panel domain set to '{domain}'. Let's Encrypt attempt note: {le_error}. Using self-signed SSL as fallback."
+            else:
+                msg = f"Panel domain set to '{domain}'"
+        else:
+            msg = "Panel domain un-bound (IP access allowed)"
 
         return {
             "success": True,
             "domain": domain,
-            "message": f"Panel domain set to '{domain}'" if domain else "Panel domain un-bound (IP access allowed)",
+            "letsencrypt_issued": le_success,
+            "message": msg,
         }
 
     async def set_panel_port(self, port: int) -> dict:

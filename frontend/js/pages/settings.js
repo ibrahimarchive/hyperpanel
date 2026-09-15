@@ -121,9 +121,16 @@ async function renderSettings() {
                     <div class="ssl-status-box">
                         <div style="display:flex;justify-content:space-between;align-items:center">
                             <span style="font-size:13px;font-weight:600;color:var(--text-primary)">Certificate Status</span>
-                            <span class="badge" style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);font-size:11px">
-                                ${ssl.status === 'Trusted' ? '🛡️ Trusted' : '🛡️ ' + (ssl.status || 'Active')}
-                            </span>
+                            <div style="display:flex;align-items:center;gap:6px">
+                                <span class="badge" style="background:${ssl.status === 'Trusted' ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)'};color:${ssl.status === 'Trusted' ? '#22c55e' : '#eab308'};border:1px solid ${ssl.status === 'Trusted' ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'};font-size:11px">
+                                    ${ssl.status === 'Trusted' ? '🛡️ Trusted' : '🛡️ Self-signed'}
+                                </span>
+                                ${_panelSettings.panel_domain && ssl.status !== 'Trusted' ? `
+                                    <button class="btn btn-primary btn-sm" onclick="submitLetsEncryptPanelSsl()" style="font-size:11px;padding:3px 8px;height:auto">
+                                        🔒 Issue Let's Encrypt
+                                    </button>
+                                ` : ''}
+                            </div>
                         </div>
 
                         <div>
@@ -272,13 +279,24 @@ async function renderSettings() {
 /* ── Network & Access Handlers ─────────────────────────────── */
 
 async function savePanelDomain() {
-    const domain = document.getElementById('setting-panel-domain').value.trim();
+    const domainInput = document.getElementById('setting-panel-domain');
+    const domain = domainInput ? domainInput.value.trim() : '';
+    const btn = document.querySelector("button[onclick='savePanelDomain()']");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner spinner-sm" style="display:inline-block;vertical-align:middle;margin-right:4px"></span> Saving...`;
+    }
+
     try {
         const res = await API.post('/api/settings/panel/domain', { domain });
-        showToast('Domain Updated', res.message || 'Panel domain saved', 'success');
+        showToast('Domain & SSL Updated', res.message || 'Panel domain saved', res.letsencrypt_issued ? 'success' : 'info');
         renderSettings();
     } catch (e) {
         showToast('Error', e.message, 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
     }
 }
 
