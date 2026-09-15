@@ -169,24 +169,25 @@ require_once ABSPATH . 'wp-settings.php';
         wp_cli_check = await run_sudo("command -v wp")
         has_wp_cli = wp_cli_check.success and bool(wp_cli_check.output.strip())
 
+        import shlex
         configured_via_cli = False
         if has_wp_cli:
             logger.info(f"Using WP-CLI to deploy WordPress for {domain}")
             # Download core
-            dl_res = await run_sudo(f"wp core download --path={doc_root} --allow-root", shell=True, timeout=300)
+            dl_res = await run_sudo(f"wp core download --path={shlex.quote(str(doc_root))} --allow-root", shell=True, timeout=300)
             if dl_res.success:
                 # Create wp-config.php via WP-CLI
                 cfg_res = await run_sudo(
-                    f"wp config create --dbname='{db_name}' --dbuser='{db_user}' --dbpass='{db_pass}' "
-                    f"--dbhost='localhost' --path={doc_root} --allow-root",
+                    f"wp config create --dbname={shlex.quote(db_name)} --dbuser={shlex.quote(db_user)} --dbpass={shlex.quote(db_pass)} "
+                    f"--dbhost='localhost' --path={shlex.quote(str(doc_root))} --allow-root",
                     shell=True,
                     timeout=60,
                 )
                 # Run core install
                 inst_res = await run_sudo(
-                    f"wp core install --url='http://{domain}' --title='{site_title}' "
-                    f"--admin_user='{admin_username}' --admin_password='{admin_password}' "
-                    f"--admin_email='{admin_email}' --path={doc_root} --allow-root",
+                    f"wp core install --url={shlex.quote('http://' + domain)} --title={shlex.quote(site_title)} "
+                    f"--admin_user={shlex.quote(admin_username)} --admin_password={shlex.quote(admin_password)} "
+                    f"--admin_email={shlex.quote(admin_email)} --path={shlex.quote(str(doc_root))} --allow-root",
                     shell=True,
                     timeout=120,
                 )
@@ -198,13 +199,13 @@ require_once ABSPATH . 'wp-settings.php';
             download_cmd = (
                 f"if [ ! -f {tar_cache} ]; then "
                 f"curl -sSL https://wordpress.org/latest.tar.gz -o {tar_cache}; "
-                f"fi && tar -xzf {tar_cache} --strip-components=1 -C {doc_root}"
+                f"fi && tar -xzf {tar_cache} --strip-components=1 -C {shlex.quote(str(doc_root))}"
             )
             extract_res = await run_sudo(download_cmd, shell=True, timeout=300)
             if not extract_res.success:
                 os.makedirs(doc_root, exist_ok=True)
                 mock_wp = doc_root / "index.php"
-                mock_wp.write_text(f"<?php\n// WordPress installed for {domain}\nphpinfo();\n")
+                mock_wp.write_text(f"<?php\n// WordPress installed for {domain}\n")
 
             # Write wp-config.php
             wp_config_content = self._render_wp_config(
@@ -219,16 +220,17 @@ require_once ABSPATH . 'wp-settings.php';
                 fd, tmp_path = tempfile.mkstemp(prefix="wp_config_", suffix=".php")
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(wp_config_content)
-                await run_sudo(f"cp {tmp_path} {wp_config_file}", shell=True)
-                await run_sudo(f"chmod 644 {wp_config_file}")
+                await run_sudo(f"cp {shlex.quote(tmp_path)} {shlex.quote(str(wp_config_file))}", shell=True)
+                await run_sudo(f"chmod 644 {shlex.quote(str(wp_config_file))}")
                 os.remove(tmp_path)
             except Exception as e:
                 logger.error(f"Failed to write wp-config.php: {e}")
 
         # 4. Fix permissions
-        await run_sudo(f"chown -R www-data:www-data {doc_root}")
-        await run_sudo(f"find {doc_root} -type d -exec chmod 755 {{}} +")
-        await run_sudo(f"find {doc_root} -type f -exec chmod 644 {{}} +")
+        q_root = shlex.quote(str(doc_root))
+        await run_sudo(f"chown -R www-data:www-data {q_root}")
+        await run_sudo(f"find {q_root} -type d -exec chmod 755 {{}} +")
+        await run_sudo(f"find {q_root} -type f -exec chmod 644 {{}} +")
 
         logger.info(f"WordPress deployment for {domain} completed (WP-CLI configured: {configured_via_cli})")
 
@@ -238,9 +240,7 @@ require_once ABSPATH . 'wp-settings.php';
             "document_root": str(doc_root),
             "db_name": db_name,
             "db_user": db_user,
-            "db_password": db_pass,
             "admin_username": admin_username,
-            "admin_password": admin_password,
             "admin_email": admin_email,
             "site_title": site_title,
             "configured_via_cli": configured_via_cli,

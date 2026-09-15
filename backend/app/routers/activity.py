@@ -112,9 +112,9 @@ async def activity_stats(
     stats = {row[0]: row[1] for row in rows}
 
     # Recent activity count (last 24h)
-    from datetime import timedelta
+    from datetime import timedelta, timezone
     recent_query = select(func.count(ActivityLog.id)).where(
-        ActivityLog.created_at >= datetime.utcnow() - timedelta(hours=24)
+        ActivityLog.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
     )
     if user.role != UserRole.ADMIN:
         recent_query = recent_query.where(ActivityLog.user_id == user.id)
@@ -144,8 +144,8 @@ async def clear_old_logs(
     db: AsyncSession = Depends(get_db),
 ):
     """Clear activity logs older than N days. Admin only."""
-    from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    from datetime import timedelta, timezone
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     result = await db.execute(
         select(func.count(ActivityLog.id)).where(ActivityLog.created_at < cutoff)

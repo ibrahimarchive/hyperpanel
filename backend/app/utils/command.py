@@ -25,6 +25,15 @@ class CommandResult:
         return self.stdout.strip()
 
 
+import re
+
+def _redact_command(command: str) -> str:
+    """Redact sensitive passwords or tokens from command strings for safe logging."""
+    redacted = re.sub(r'(-p|--password[=\s]+)\S+', r'\1[REDACTED]', command, flags=re.IGNORECASE)
+    redacted = re.sub(r'(IDENTIFIED BY\s+[\'"])[^\'"]+([\'"])', r'\1[REDACTED]\2', redacted, flags=re.IGNORECASE)
+    return redacted
+
+
 async def run_command(
     command: str,
     shell: bool = False,
@@ -45,7 +54,8 @@ async def run_command(
     Returns:
         CommandResult with stdout, stderr, returncode
     """
-    logger.info(f"Executing command: {command}")
+    safe_log_cmd = _redact_command(command)
+    logger.info(f"Executing command: {safe_log_cmd}")
 
     try:
         if shell:
@@ -79,7 +89,7 @@ async def run_command(
 
         if not result.success:
             logger.warning(
-                f"Command failed (rc={result.returncode}): {command}\n"
+                f"Command failed (rc={result.returncode}): {safe_log_cmd}\n"
                 f"stderr: {result.stderr}"
             )
 

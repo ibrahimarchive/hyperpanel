@@ -156,7 +156,7 @@ async def _run_backup(backup_id: int, data: BackupCreate, user: User):
                 backup.filename = result.get("filename")
                 backup.filepath = result.get("filepath")
                 backup.size_bytes = result.get("size_bytes", 0)
-                backup.completed_at = datetime.utcnow()
+                backup.completed_at = datetime.now(timezone.utc)
             else:
                 backup.status = BackupStatus.FAILED
                 backup.error_message = result.get("error", "Unknown error")
@@ -175,6 +175,10 @@ async def download_backup(
     db: AsyncSession = Depends(get_db),
 ):
     """Download a backup file."""
+    import os
+    from app.utils.validators import sanitize_path
+    from app.config import settings
+
     result = await db.execute(select(Backup).where(Backup.id == backup_id))
     backup = result.scalar_one_or_none()
 
@@ -187,9 +191,13 @@ async def download_backup(
     if not backup.filepath:
         raise HTTPException(status_code=400, detail="Backup file path missing")
 
+    safe_path = sanitize_path(backup.filepath, settings.BACKUPS_DIR)
+    if not safe_path or not os.path.isfile(safe_path):
+        raise HTTPException(status_code=404, detail="Backup file not found or invalid path")
+
     return FileResponse(
-        path=backup.filepath,
-        filename=backup.filename,
+        path=safe_path,
+        filename=os.path.basename(safe_path),
         media_type="application/gzip",
     )
 

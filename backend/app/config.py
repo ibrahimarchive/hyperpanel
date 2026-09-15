@@ -3,7 +3,9 @@ HyperPanel Configuration
 Centralized settings management using pydantic-settings.
 """
 
+import secrets
 from pathlib import Path
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -58,6 +60,13 @@ class Settings(BaseSettings):
     # Panel info
     PANEL_NAME: str = "HyperPanel"
     PANEL_VERSION: str = "1.0.0"
+
+    @model_validator(mode="after")
+    def validate_security(self):
+        if not self.DEBUG and self.SECRET_KEY == "dev-secret-key-change-in-production":
+            # Generate temporary random key for runtime safety in non-debug mode
+            self.SECRET_KEY = secrets.token_urlsafe(32)
+        return self
 
     @property
     def websites_root_path(self) -> Path:

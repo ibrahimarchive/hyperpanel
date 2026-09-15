@@ -63,8 +63,23 @@ def create_temp_2fa_token(user: User) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+_revoked_tokens: set[str] = set()
+
+
+def revoke_token(token: str) -> None:
+    """Revoke a token by adding it to the blacklist."""
+    _revoked_tokens.add(token)
+
+
+def is_token_revoked(token: str) -> bool:
+    """Check if a token has been revoked."""
+    return token in _revoked_tokens
+
+
 def decode_token(token: str) -> Optional[dict]:
     """Decode and validate a JWT token."""
+    if is_token_revoked(token):
+        return None
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
@@ -88,7 +103,7 @@ async def authenticate_user(
         return None
 
     # Update last login
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     await db.commit()
 
     return user

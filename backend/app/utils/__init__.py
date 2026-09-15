@@ -9,6 +9,7 @@ from app.utils.validators import (
     validate_database_name,
     validate_port,
     validate_ip,
+    validate_name,
     validate_cron_expression,
     sanitize_path,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "validate_database_name",
     "validate_port",
     "validate_ip",
+    "validate_name",
     "validate_cron_expression",
     "sanitize_path",
 ]

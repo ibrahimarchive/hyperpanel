@@ -34,10 +34,12 @@ function handleModalEscape(e) {
 }
 
 function confirmModal(title, message, onConfirm, type = 'danger') {
-    const body = `<p style="color: var(--text-secondary); font-size: var(--text-sm);">${message}</p>`;
+    const safeMsg = typeof escapeHtml === 'function' ? escapeHtml(message) : message;
+    const safeTitle = typeof escapeHtml === 'function' ? escapeHtml(title) : title;
+    const body = `<p style="color: var(--text-secondary); font-size: var(--text-sm);">${safeMsg}</p>`;
     const footer = `
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-${type}" id="confirm-action-btn">${title}</button>
+        <button class="btn btn-${type}" id="confirm-action-btn">${safeTitle}</button>
     `;
 
     openModal(title, body, footer);

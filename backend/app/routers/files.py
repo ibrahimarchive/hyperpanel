@@ -115,14 +115,22 @@ async def upload_file(
     if not target_dir:
         raise HTTPException(status_code=400, detail="Invalid upload path")
 
-    target_path = os.path.join(target_dir, file.filename)
-    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    safe_filename = os.path.basename(file.filename or "upload.bin")
+    if not safe_filename or safe_filename in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    target_path = os.path.join(target_dir, safe_filename)
+    validated_target = sanitize_path(target_path, base_dir)
+    if not validated_target:
+        raise HTTPException(status_code=400, detail="Target path escapes base directory")
+
+    os.makedirs(os.path.dirname(validated_target), exist_ok=True)
 
     content = await file.read()
-    with open(target_path, "wb") as f:
+    with open(validated_target, "wb") as f:
         f.write(content)
 
-    return {"success": True, "filename": file.filename, "size": len(content)}
+    return {"success": True, "filename": safe_filename, "size": len(content)}
 
 
 @router.get("/download")

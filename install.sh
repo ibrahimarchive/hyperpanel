@@ -150,14 +150,14 @@ if ! id "$PANEL_USER" &>/dev/null; then
     useradd -r -s /bin/bash -d "$PANEL_DIR" "$PANEL_USER"
 fi
 
-# Grant hyperpanel passwordless sudo for service management
+# Grant hyperpanel scoped sudo privileges for required system management commands
 cat > /etc/sudoers.d/hyperpanel << EOF
 # HyperPanel service management permissions
-$PANEL_USER ALL=(ALL) NOPASSWD: ALL
+$PANEL_USER ALL=(ALL) NOPASSWD: /bin/systemctl, /usr/bin/systemctl, /usr/sbin/nginx, /usr/sbin/ufw, /usr/bin/certbot, /usr/bin/mysql, /usr/bin/mysqldump, /usr/bin/docker, /usr/bin/wp, /bin/chown, /bin/chmod, /bin/mkdir, /bin/rm, /bin/cp, /bin/tar, /usr/bin/curl, /bin/cat, /usr/bin/cat, /usr/bin/apt-get
 EOF
 chmod 0440 /etc/sudoers.d/hyperpanel
 
-echo -e "${GREEN}✓ User '${PANEL_USER}' configured with sudo permissions${NC}"
+echo -e "${GREEN}✓ User '${PANEL_USER}' configured with scoped sudo permissions${NC}"
 
 # ── Step 4: Acquire HyperPanel source code ────────────────
 echo -e "\n${BLUE}[4/7] Deploying HyperPanel source to ${PANEL_DIR}...${NC}"

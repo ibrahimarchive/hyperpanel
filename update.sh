@@ -48,6 +48,12 @@ fi
 
 cd "$PANEL_DIR"
 
+echo -e "\n${CYAN}[0/4] Creating pre-update backup...${NC}"
+mkdir -p /var/hyperpanel/backups
+BACKUP_FILE="/var/hyperpanel/backups/pre_update_$(date +%s).tar.gz"
+tar -czf "$BACKUP_FILE" -C "$PANEL_DIR" backend/.env hyperpanel.db 2>/dev/null || true
+echo -e "${GREEN}✓ Pre-update backup saved to ${BACKUP_FILE}${NC}"
+
 echo -e "\n${CYAN}[1/4] Fetching latest tags and commits...${NC}"
 git fetch --tags --force origin
 git fetch --force origin main

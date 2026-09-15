@@ -239,65 +239,65 @@ server {{
 
     client_max_body_size 500M;
 
-    location / {{
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
+        location / {{
+            proxy_pass http://127.0.0.1:{settings.PANEL_INTERNAL_PORT};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
+        }}
     }}
-}}
-"""
+    """
             else:
                 domain_block = f"""
-server {{
-    listen 80;
-    server_name {panel_domain};
+    server {{
+        listen 80;
+        server_name {panel_domain};
 
-    client_max_body_size 500M;
+        client_max_body_size 500M;
 
-    location / {{
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
+        location / {{
+            proxy_pass http://127.0.0.1:{settings.PANEL_INTERNAL_PORT};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
+        }}
     }}
-}}
-"""
+    """
 
         nginx_conf = f"""# HyperPanel Management Server — Nginx Proxy
-server {{
-    {ssl_directives}
-    server_name _;
+    server {{
+        {ssl_directives}
+        server_name _;
 
-    client_max_body_size 500M;
+        client_max_body_size 500M;
 
-    location / {{
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
+        location / {{
+            proxy_pass http://127.0.0.1:{settings.PANEL_INTERNAL_PORT};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
+        }}
     }}
-}}
-{domain_block}
-"""
+    {domain_block}
+    """
         try:
             conf_path = "/etc/nginx/sites-available/hyperpanel.conf"
             enabled_path = "/etc/nginx/sites-enabled/hyperpanel.conf"

@@ -4,6 +4,8 @@ Manages Docker installation, containers, and images.
 """
 
 import logging
+import re
+import shlex
 from typing import Optional
 
 from app.utils.command import run_sudo, run_command

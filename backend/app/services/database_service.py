@@ -14,8 +14,16 @@ from app.utils.command import CommandResult, run_command, run_sudo
 logger = logging.getLogger(__name__)
 
 
+import shlex
+from app.utils.validators import validate_database_name, validate_username
+
+
 class DatabaseService:
     """Manages MySQL/MariaDB databases and users."""
+
+    def _escape_sql_str(self, val: str) -> str:
+        """Escape single quotes and backslashes for SQL literals."""
+        return val.replace("\\", "\\\\").replace("'", "\\'")
 
     async def _run_mysql_query(self, sql: str) -> CommandResult:
         """Execute a MySQL query reliably via a temp file piped to sudo mysql."""
@@ -24,7 +32,8 @@ class DatabaseService:
             fd, tmp_path = tempfile.mkstemp(prefix="hp_sql_", suffix=".sql")
             with os.fdopen(fd, "w") as f:
                 f.write(sql)
-            cmd = f"mysql < {tmp_path}"
+            safe_path = shlex.quote(tmp_path)
+            cmd = f"mysql < {safe_path}"
             result = await run_sudo(cmd, shell=True)
             return result
         except Exception as e:
@@ -41,7 +50,11 @@ class DatabaseService:
         self, name: str, charset: str = "utf8mb4", collation: str = "utf8mb4_unicode_ci"
     ) -> dict:
         """Create a new MySQL database."""
-        sql = f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET {charset} COLLATE {collation};"
+        if not validate_database_name(name):
+            return {"success": False, "error": "Invalid database name format"}
+        safe_charset = self._escape_sql_str(charset)
+        safe_collation = self._escape_sql_str(collation)
+        sql = f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET {safe_charset} COLLATE {safe_collation};"
         result = await self._run_mysql_query(sql)
         if result.success:
             logger.info(f"Database '{name}' created successfully")
@@ -50,6 +63,8 @@ class DatabaseService:
 
     async def drop_database(self, name: str) -> dict:
         """Drop a MySQL database."""
+        if not validate_database_name(name):
+            return {"success": False, "error": "Invalid database name format"}
         sql = f"DROP DATABASE IF EXISTS `{name}`;"
         result = await self._run_mysql_query(sql)
         if result.success:
@@ -59,6 +74,8 @@ class DatabaseService:
 
     async def get_database_size(self, name: str) -> int:
         """Get the size of a database in bytes."""
+        if not validate_database_name(name):
+            return 0
         sql = (
             f"SELECT SUM(data_length + index_length) "
             f"FROM information_schema.tables WHERE table_schema = '{name}';"
@@ -66,7 +83,6 @@ class DatabaseService:
         result = await self._run_mysql_query(sql)
         if result.success and result.output and result.output != "NULL":
             try:
-                # Output may contain column header; grab the last numeric line
                 for line in reversed(result.output.strip().split("\n")):
                     line = line.strip()
                     if line and line != "NULL":
@@ -87,7 +103,11 @@ class DatabaseService:
         self, username: str, password: str, host: str = "localhost"
     ) -> dict:
         """Create a MySQL user."""
-        sql = f"CREATE USER IF NOT EXISTS '{username}'@'{host}' IDENTIFIED BY '{password}';"
+        if not validate_username(username):
+            return {"success": False, "error": "Invalid username format"}
+        safe_host = self._escape_sql_str(host)
+        safe_password = self._escape_sql_str(password)
+        sql = f"CREATE USER IF NOT EXISTS '{username}'@'{safe_host}' IDENTIFIED BY '{safe_password}';"
         result = await self._run_mysql_query(sql)
         if result.success:
             logger.info(f"Database user '{username}'@'{host}' created")
@@ -96,7 +116,10 @@ class DatabaseService:
 
     async def drop_user(self, username: str, host: str = "localhost") -> dict:
         """Drop a MySQL user."""
-        sql = f"DROP USER IF EXISTS '{username}'@'{host}';"
+        if not validate_username(username):
+            return {"success": False, "error": "Invalid username format"}
+        safe_host = self._escape_sql_str(host)
+        sql = f"DROP USER IF EXISTS '{username}'@'{safe_host}';"
         result = await self._run_mysql_query(sql)
         return {"success": result.success, "error": result.stderr or result.stdout if not result.success else None}
 
@@ -108,7 +131,11 @@ class DatabaseService:
         host: str = "localhost",
     ) -> dict:
         """Grant privileges on a database to a user."""
-        sql = f"GRANT {privileges} ON `{database}`.* TO '{username}'@'{host}'; FLUSH PRIVILEGES;"
+        if not validate_username(username) or not validate_database_name(database):
+            return {"success": False, "error": "Invalid username or database name format"}
+        safe_host = self._escape_sql_str(host)
+        safe_privs = "ALL" if privileges.upper() == "ALL" else self._escape_sql_str(privileges)
+        sql = f"GRANT {safe_privs} ON `{database}`.* TO '{username}'@'{safe_host}'; FLUSH PRIVILEGES;"
         result = await self._run_mysql_query(sql)
         return {"success": result.success, "error": result.stderr or result.stdout if not result.success else None}
 
@@ -116,13 +143,20 @@ class DatabaseService:
         self, username: str, database: str, host: str = "localhost"
     ) -> dict:
         """Revoke all privileges from a user on a database."""
-        sql = f"REVOKE ALL PRIVILEGES ON `{database}`.* FROM '{username}'@'{host}'; FLUSH PRIVILEGES;"
+        if not validate_username(username) or not validate_database_name(database):
+            return {"success": False, "error": "Invalid username or database name format"}
+        safe_host = self._escape_sql_str(host)
+        sql = f"REVOKE ALL PRIVILEGES ON `{database}`.* FROM '{username}'@'{safe_host}'; FLUSH PRIVILEGES;"
         result = await self._run_mysql_query(sql)
         return {"success": result.success}
 
     async def export_database(self, name: str, output_path: str) -> dict:
         """Export a database using mysqldump."""
-        cmd = f"mysqldump --single-transaction --quick {name} > {output_path}"
+        if not validate_database_name(name):
+            return {"success": False, "error": "Invalid database name format"}
+        safe_name = shlex.quote(name)
+        safe_out = shlex.quote(output_path)
+        cmd = f"mysqldump --single-transaction --quick {safe_name} > {safe_out}"
         result = await run_sudo(cmd, shell=True, timeout=600)
         if result.success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
             return {"success": True, "path": output_path}
@@ -130,7 +164,11 @@ class DatabaseService:
 
     async def import_database(self, name: str, input_path: str) -> dict:
         """Import a SQL file into a database."""
-        cmd = f"mysql {name} < {input_path}"
+        if not validate_database_name(name):
+            return {"success": False, "error": "Invalid database name format"}
+        safe_name = shlex.quote(name)
+        safe_in = shlex.quote(input_path)
+        cmd = f"mysql {safe_name} < {safe_in}"
         result = await run_sudo(cmd, shell=True, timeout=600)
         return {"success": result.success, "error": result.stderr if not result.success else None}
 

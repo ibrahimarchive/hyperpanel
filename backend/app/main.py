@@ -65,10 +65,13 @@ app = FastAPI(
 )
 
 # CORS
+cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+is_wildcard = "*" in cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins if cors_origins else ["*"],
+    allow_credentials=not is_wildcard,  # Avoid wildcard with credentials
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -262,8 +265,6 @@ if frontend_dir.exists():
 async def health_check():
     return {
         "status": "ok",
-        "panel": settings.PANEL_NAME,
-        "version": settings.PANEL_VERSION,
     }
 
 

@@ -132,10 +132,13 @@ class UpdateService:
         Trigger a detached background update script that checks out the specified release tag,
         updates dependencies, syncs Nginx, and restarts the systemd service without killing itself.
         """
+        import re
         panel_path = str(self.panel_dir).replace("\\", "/")
         tag = target_tag.strip() if target_tag else ""
+        if tag and not re.match(r"^[a-zA-Z0-9._-]+$", tag):
+            return {"status": "error", "message": "Invalid version tag format"}
 
-        checkout_cmd = f"git checkout tags/{tag}" if tag else "git pull origin main"
+        safe_tag = tag
 
         script_content = f"""#!/bin/bash
 exec > /tmp/hyperpanel_update.log 2>&1

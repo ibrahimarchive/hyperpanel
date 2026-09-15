@@ -29,11 +29,21 @@ def validate_port(port: int) -> bool:
     return 1 <= port <= 65535
 
 
+import ipaddress
+
 def validate_ip(ip: str) -> bool:
     """Validate an IPv4 or IPv6 address."""
-    ipv4 = r'^(\d{1,3}\.){3}\d{1,3}$'
-    ipv6 = r'^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$'
-    return bool(re.match(ipv4, ip) or re.match(ipv6, ip))
+    try:
+        ipaddress.ip_address(ip.strip())
+        return True
+    except ValueError:
+        return False
+
+
+def validate_name(name: str) -> bool:
+    """Validate a safe general identifier name (alphanumeric, dash, underscore)."""
+    pattern = r'^[a-zA-Z0-9._-]{1,128}$'
+    return bool(re.match(pattern, name))
 
 
 def validate_cron_expression(expression: str) -> bool:
@@ -54,9 +64,10 @@ def sanitize_path(path: str, base_dir: str) -> Optional[str]:
     from pathlib import Path as P
     try:
         base = P(base_dir).resolve()
-        target = (base / path).resolve()
+        target = (base / path.lstrip("/\\")).resolve()
         if str(target).startswith(str(base)):
             return str(target)
         return None
     except (ValueError, OSError):
         return None
+

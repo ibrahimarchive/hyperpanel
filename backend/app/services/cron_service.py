@@ -9,7 +9,7 @@ import shlex
 import tempfile
 from typing import Optional
 
-from app.utils.command import run_sudo, run_command
+from app.utils.command import run_sudo, run_command, CommandResult
 
 logger = logging.getLogger(__name__)
 
