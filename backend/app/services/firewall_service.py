@@ -4,6 +4,7 @@ Manages UFW (Uncomplicated Firewall) rules.
 """
 
 import logging
+import shlex
 import re
 from typing import Optional
 
@@ -56,13 +57,18 @@ class FirewallService:
         protocol: str = "tcp",
         source_ip: Optional[str] = None,
     ) -> dict:
-        """Add a firewall rule."""
-        if source_ip:
-            cmd = f"ufw {action} from {source_ip} to any port {port} proto {protocol}"
-        elif protocol == "both":
-            cmd = f"ufw {action} {port}"
+        """Add a firewall rule safely."""
+        safe_action = action.lower() if action.lower() in ("allow", "deny", "reject", "limit") else "allow"
+        safe_protocol = protocol.lower() if protocol.lower() in ("tcp", "udp", "both") else "tcp"
+        q_port = shlex.quote(str(port).strip())
+
+        if source_ip and re.match(r"^[\d\.:a-fA-F/]+$", source_ip.strip()):
+            q_ip = shlex.quote(source_ip.strip())
+            cmd = f"ufw {safe_action} from {q_ip} to any port {q_port} proto {safe_protocol}"
+        elif safe_protocol == "both":
+            cmd = f"ufw {safe_action} {q_port}"
         else:
-            cmd = f"ufw {action} {port}/{protocol}"
+            cmd = f"ufw {safe_action} {q_port}/{safe_protocol}"
 
         result = await run_sudo(cmd)
         logger.info(f"Firewall rule added: {cmd} — success: {result.success}")
@@ -70,19 +76,25 @@ class FirewallService:
 
     async def delete_rule(self, rule_number: int) -> dict:
         """Delete a firewall rule by its number."""
-        result = await run_sudo(f"ufw --force delete {rule_number}")
+        safe_num = int(rule_number)
+        result = await run_sudo(f"ufw --force delete {safe_num}")
         return {"success": result.success}
 
     async def delete_rule_by_spec(
         self, action: str, port: str, protocol: str = "tcp", source_ip: Optional[str] = None
     ) -> dict:
-        """Delete a rule by its specification."""
-        if source_ip:
-            cmd = f"ufw delete {action} from {source_ip} to any port {port} proto {protocol}"
-        elif protocol == "both":
-            cmd = f"ufw delete {action} {port}"
+        """Delete a rule by its specification safely."""
+        safe_action = action.lower() if action.lower() in ("allow", "deny", "reject", "limit") else "allow"
+        safe_protocol = protocol.lower() if protocol.lower() in ("tcp", "udp", "both") else "tcp"
+        q_port = shlex.quote(str(port).strip())
+
+        if source_ip and re.match(r"^[\d\.:a-fA-F/]+$", source_ip.strip()):
+            q_ip = shlex.quote(source_ip.strip())
+            cmd = f"ufw delete {safe_action} from {q_ip} to any port {q_port} proto {safe_protocol}"
+        elif safe_protocol == "both":
+            cmd = f"ufw delete {safe_action} {q_port}"
         else:
-            cmd = f"ufw delete {action} {port}/{protocol}"
+            cmd = f"ufw delete {safe_action} {q_port}/{safe_protocol}"
 
         result = await run_sudo(cmd)
         return {"success": result.success}

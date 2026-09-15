@@ -4,6 +4,7 @@ Handles optional installation, service controls, virtual users, and directory ja
 """
 
 import logging
+import shlex
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -123,15 +124,18 @@ class FTPService:
             raise ValueError(f"FTP user '{username}' already exists")
 
         # 2. Ensure target directory exists and has suitable permissions
-        prep_dir_cmd = f"mkdir -p '{directory}' && chown -R www-data:www-data '{directory}' && chmod 755 '{directory}'"
+        q_dir = shlex.quote(directory)
+        q_user = shlex.quote(username)
+        q_pass = shlex.quote(password)
+
+        prep_dir_cmd = f"mkdir -p {q_dir} && chown -R www-data:www-data {q_dir} && chmod 755 {q_dir}"
         await run_sudo(prep_dir_cmd, shell=True)
 
         # 3. Add to PureDB using pure-pw
-        # Note: -u www-data -g www-data runs the session as www-data, chrooted to directory
-        quota_arg = f"-N {quota_mb}" if quota_mb > 0 else ""
+        quota_arg = f"-N {int(quota_mb)}" if quota_mb > 0 else ""
         add_user_cmd = (
-            f"printf '%s\\n%s\\n' '{password}' '{password}' | "
-            f"pure-pw useradd '{username}' -u www-data -g www-data -d '{directory}' {quota_arg} -m"
+            f"printf '%s\\n%s\\n' {q_pass} {q_pass} | "
+            f"pure-pw useradd {q_user} -u www-data -g www-data -d {q_dir} {quota_arg} -m"
         )
         res = await run_sudo(add_user_cmd, shell=True)
         if not res.success:
@@ -159,29 +163,33 @@ class FTPService:
         quota_mb: Optional[int] = None,
         status: Optional[str] = None,
     ) -> FTPAccount:
-        """Update an existing FTP account's password, directory, quota, or status."""
+        """Update an existing FTP account's password, directory, quota, or status safely."""
         result = await db.execute(select(FTPAccount).where(FTPAccount.id == account_id))
         account = result.scalar_one_or_none()
         if not account:
             raise ValueError("FTP account not found")
 
+        q_acc_user = shlex.quote(account.username)
+
         # Update pure-pw virtual user
         if directory or quota_mb is not None:
             new_dir = directory or account.directory
             new_quota = quota_mb if quota_mb is not None else account.quota_mb
-            quota_arg = f"-N {new_quota}" if new_quota > 0 else "-N 0"
+            quota_arg = f"-N {int(new_quota)}" if new_quota > 0 else "-N 0"
+            q_new_dir = shlex.quote(new_dir)
 
             if directory:
-                await run_sudo(f"mkdir -p '{new_dir}' && chown -R www-data:www-data '{new_dir}' && chmod 755 '{new_dir}'", shell=True)
+                await run_sudo(f"mkdir -p {q_new_dir} && chown -R www-data:www-data {q_new_dir} && chmod 755 {q_new_dir}", shell=True)
 
-            mod_cmd = f"pure-pw usermod '{account.username}' -d '{new_dir}' {quota_arg} -m"
+            mod_cmd = f"pure-pw usermod {q_acc_user} -d {q_new_dir} {quota_arg} -m"
             await run_sudo(mod_cmd, shell=True)
 
             account.directory = new_dir
             account.quota_mb = new_quota
 
         if password:
-            passwd_cmd = f"printf '%s\\n%s\\n' '{password}' '{password}' | pure-pw passwd '{account.username}' -m"
+            q_new_pass = shlex.quote(password)
+            passwd_cmd = f"printf '%s\\n%s\\n' {q_new_pass} {q_new_pass} | pure-pw passwd {q_acc_user} -m"
             res = await run_sudo(passwd_cmd, shell=True)
             if not res.success:
                 raise RuntimeError(f"pure-pw passwd failed: {res.stderr}")

@@ -5,6 +5,8 @@ Reads and writes system crontab entries per user.
 
 import logging
 import re
+import shlex
+import tempfile
 from typing import Optional
 
 from app.utils.command import run_sudo, run_command
@@ -118,11 +120,11 @@ class CronService:
         return f"Custom: {schedule}"
 
     async def list_system_crontab(self, username: str = "root") -> list[dict]:
-        """Read and parse the system crontab for a user."""
-        result = await run_sudo(f"crontab -l -u {username}")
+        """Read and parse the system crontab for a user safely."""
+        q_user = shlex.quote(username)
+        result = await run_sudo(f"crontab -l -u {q_user}")
 
         if not result.success:
-            # "no crontab for user" is not an error
             if "no crontab" in result.stderr.lower():
                 return []
             logger.warning(f"Failed to read crontab for {username}: {result.stderr}")
@@ -134,7 +136,6 @@ class CronService:
             if not line or line.startswith("#"):
                 continue
 
-            # Parse: schedule(5 fields) command
             parts = line.split(None, 5)
             if len(parts) >= 6:
                 schedule = " ".join(parts[:5])
@@ -147,29 +148,37 @@ class CronService:
 
         return entries
 
+    async def _write_crontab(self, username: str, content: str) -> CommandResult:
+        """Write crontab content via a temporary file."""
+        q_user = shlex.quote(username)
+        with tempfile.NamedTemporaryFile("w", delete=False) as tf:
+            tf.write(content.strip() + "\n" if content.strip() else "")
+            tmp_file = tf.name
+
+        try:
+            result = await run_sudo(f"crontab -u {q_user} {tmp_file}")
+            return result
+        finally:
+            await run_sudo(f"rm -f {tmp_file}")
+
     async def add_to_crontab(self, username: str, schedule: str, command: str) -> dict:
-        """Add a cron entry to the system crontab."""
+        """Add a cron entry to the system crontab safely."""
         if not self.validate_schedule(schedule):
             return {"success": False, "error": "Invalid cron schedule expression"}
 
-        # Get existing crontab
-        result = await run_sudo(f"crontab -l -u {username}")
+        q_user = shlex.quote(username)
+        result = await run_sudo(f"crontab -l -u {q_user}")
         existing = ""
         if result.success:
             existing = result.stdout.strip()
 
-        # Append new entry
         new_entry = f"{schedule} {command}"
         if existing:
             new_crontab = f"{existing}\n{new_entry}\n"
         else:
             new_crontab = f"{new_entry}\n"
 
-        # Write back
-        write_result = await run_sudo(
-            f"bash -c 'echo \"{new_crontab}\" | crontab -u {username} -'",
-            shell=True,
-        )
+        write_result = await self._write_crontab(username, new_crontab)
 
         if write_result.success:
             logger.info(f"Added cron job for {username}: {new_entry}")
@@ -179,8 +188,9 @@ class CronService:
         return {"success": write_result.success, "error": write_result.stderr if not write_result.success else None}
 
     async def remove_from_crontab(self, username: str, schedule: str, command: str) -> dict:
-        """Remove a specific cron entry from the system crontab."""
-        result = await run_sudo(f"crontab -l -u {username}")
+        """Remove a specific cron entry from the system crontab safely."""
+        q_user = shlex.quote(username)
+        result = await run_sudo(f"crontab -l -u {q_user}")
         if not result.success:
             return {"success": False, "error": "Could not read crontab"}
 
@@ -194,13 +204,9 @@ class CronService:
         new_crontab = "\n".join(new_lines) + "\n" if new_lines else ""
 
         if new_crontab.strip():
-            write_result = await run_sudo(
-                f"bash -c 'echo \"{new_crontab}\" | crontab -u {username} -'",
-                shell=True,
-            )
+            write_result = await self._write_crontab(username, new_crontab)
         else:
-            # Remove crontab entirely if empty
-            write_result = await run_sudo(f"crontab -r -u {username}")
+            write_result = await run_sudo(f"crontab -r -u {q_user}")
 
         return {"success": write_result.success}
 

@@ -5,6 +5,7 @@ Handles full server, per-site, and database backups using tar and mysqldump.
 
 import asyncio
 import logging
+import shlex
 import os
 import shutil
 from datetime import datetime
@@ -93,27 +94,31 @@ class BackupService:
                 for db_name in db_result.output.strip().split("\n"):
                     db_name = db_name.strip()
                     if db_name:
+                        q_db = shlex.quote(db_name)
+                        q_dump = shlex.quote(f"{dump_dir}/{db_name}.sql.gz")
                         await run_sudo(
-                            f"mysqldump --single-transaction --routines --triggers {db_name} | gzip > {dump_dir}/{db_name}.sql.gz",
+                            f"mysqldump --single-transaction --routines --triggers {q_db} | gzip > {q_dump}",
                             shell=True,
                         )
 
             # Copy Nginx configs
-            await run_sudo(f"cp -r /etc/nginx/sites-available {dump_dir}/nginx_configs 2>/dev/null || true", shell=True)
+            q_dump_dir = shlex.quote(str(dump_dir))
+            await run_sudo(f"cp -r /etc/nginx/sites-available {q_dump_dir}/nginx_configs 2>/dev/null || true", shell=True)
 
             # Create tar.gz including websites + DB dumps + configs
-            items_to_backup = f"{settings.WEBSITES_ROOT} {dump_dir}"
+            q_websites = shlex.quote(settings.WEBSITES_ROOT)
+            q_filepath = shlex.quote(str(filepath))
             await run_sudo(
-                f"tar -czf {filepath} {items_to_backup} 2>/dev/null",
+                f"tar -czf {q_filepath} {q_websites} {q_dump_dir} 2>/dev/null",
                 shell=True,
                 timeout=600,
             )
 
             # Cleanup temp directory
-            await run_sudo(f"rm -rf {dump_dir}")
+            await run_sudo(f"rm -rf {q_dump_dir}")
 
             # Get file size
-            stat_result = await run_command(f"stat -c %s {filepath}")
+            stat_result = await run_command(f"stat -c %s {q_filepath}")
             size_bytes = int(stat_result.output.strip()) if stat_result.success else 0
 
             return {
@@ -126,37 +131,42 @@ class BackupService:
         except Exception as e:
             logger.error(f"Full backup failed: {e}")
             # Cleanup on failure
-            await run_sudo(f"rm -rf {self.backups_dir}/_tmp_{timestamp}")
+            q_tmp = shlex.quote(f"{self.backups_dir}/_tmp_{timestamp}")
+            await run_sudo(f"rm -rf {q_tmp}")
             return {"success": False, "error": str(e)}
 
     async def create_website_backup(self, website_name: str, docroot: str, database_name: Optional[str] = None) -> dict:
-        """Create a backup for a specific website."""
+        """Create a backup for a specific website safely."""
         await self.ensure_backup_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = website_name.replace(".", "_").replace("/", "_")
         filename = f"site_{safe_name}_{timestamp}.tar.gz"
         filepath = self.backups_dir / filename
+        q_filepath = shlex.quote(str(filepath))
+        q_docroot = shlex.quote(docroot)
 
         try:
-            items = docroot
+            items = q_docroot
             tmp_db_dump = None
 
             # Dump associated database if provided
             if database_name:
                 tmp_db_dump = f"/tmp/{safe_name}_{timestamp}.sql.gz"
+                q_dbname = shlex.quote(database_name)
+                q_dump = shlex.quote(tmp_db_dump)
                 await run_sudo(
-                    f"mysqldump --single-transaction --routines --triggers {database_name} | gzip > {tmp_db_dump}",
+                    f"mysqldump --single-transaction --routines --triggers {q_dbname} | gzip > {q_dump}",
                     shell=True,
                 )
-                items = f"{docroot} {tmp_db_dump}"
+                items = f"{q_docroot} {q_dump}"
 
-            await run_sudo(f"tar -czf {filepath} {items} 2>/dev/null", shell=True, timeout=300)
+            await run_sudo(f"tar -czf {q_filepath} {items} 2>/dev/null", shell=True, timeout=300)
 
             # Cleanup temp DB dump
             if tmp_db_dump:
-                await run_sudo(f"rm -f {tmp_db_dump}")
+                await run_sudo(f"rm -f {shlex.quote(tmp_db_dump)}")
 
-            stat_result = await run_command(f"stat -c %s {filepath}")
+            stat_result = await run_command(f"stat -c %s {q_filepath}")
             size_bytes = int(stat_result.output.strip()) if stat_result.success else 0
 
             return {
@@ -171,15 +181,17 @@ class BackupService:
             return {"success": False, "error": str(e)}
 
     async def create_database_backup(self, database_name: str) -> dict:
-        """Create a backup of a single database."""
+        """Create a backup of a single database safely."""
         await self.ensure_backup_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"db_{database_name}_{timestamp}.sql.gz"
         filepath = self.backups_dir / filename
+        q_dbname = shlex.quote(database_name)
+        q_filepath = shlex.quote(str(filepath))
 
         try:
             result = await run_sudo(
-                f"mysqldump --single-transaction --routines --triggers {database_name} | gzip > {filepath}",
+                f"mysqldump --single-transaction --routines --triggers {q_dbname} | gzip > {q_filepath}",
                 shell=True,
                 timeout=300,
             )

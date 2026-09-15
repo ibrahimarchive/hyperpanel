@@ -4,6 +4,7 @@ Reads and streams system log files.
 """
 
 import logging
+import shlex
 import os
 from pathlib import Path
 from typing import Optional
@@ -154,10 +155,14 @@ class LogService:
                 return {"lines": [], "total_lines": 0, "file_size": 0}
 
         # Read with tail
+        q_path = shlex.quote(log_path)
+        safe_lines = int(lines) if isinstance(lines, int) or str(lines).isdigit() else 100
+
         if search:
-            cmd = f"grep -i '{search}' {log_path} | tail -n {lines}"
+            q_search = shlex.quote(search)
+            cmd = f"grep -i {q_search} {q_path} | tail -n {safe_lines}"
         else:
-            cmd = f"tail -n {lines} {log_path}"
+            cmd = f"tail -n {safe_lines} {q_path}"
 
         result = await run_sudo(cmd, shell=True)
         if not result.success:

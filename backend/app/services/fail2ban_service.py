@@ -3,6 +3,7 @@ Fail2Ban management service.
 """
 
 import logging
+import shlex
 import re
 from typing import Optional
 
@@ -76,7 +77,8 @@ class Fail2BanService:
 
     async def get_jail_status(self, jail_name: str) -> Optional[dict]:
         """Get detailed status of a specific jail."""
-        result = await run_sudo(f"fail2ban-client status {jail_name}")
+        q_jail = shlex.quote(jail_name)
+        result = await run_sudo(f"fail2ban-client status {q_jail}")
         if not result.success:
             return None
 
@@ -119,12 +121,16 @@ class Fail2BanService:
 
     async def ban_ip(self, jail_name: str, ip: str) -> dict:
         """Manually ban an IP in a jail."""
-        result = await run_sudo(f"fail2ban-client set {jail_name} banip {ip}")
+        q_jail = shlex.quote(jail_name)
+        q_ip = shlex.quote(ip)
+        result = await run_sudo(f"fail2ban-client set {q_jail} banip {q_ip}")
         return {"success": result.success, "error": result.stderr if not result.success else None}
 
     async def unban_ip(self, jail_name: str, ip: str) -> dict:
         """Unban an IP from a jail."""
-        result = await run_sudo(f"fail2ban-client set {jail_name} unbanip {ip}")
+        q_jail = shlex.quote(jail_name)
+        q_ip = shlex.quote(ip)
+        result = await run_sudo(f"fail2ban-client set {q_jail} unbanip {q_ip}")
         return {"success": result.success, "error": result.stderr if not result.success else None}
 
 

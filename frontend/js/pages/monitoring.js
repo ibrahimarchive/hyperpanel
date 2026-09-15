@@ -22,8 +22,10 @@ async function renderMonitoring() {
 function startMonitoringWs() {
     if (monitoringWs) { monitoringWs.close(); }
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const token = API.getToken();
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
     try {
-        monitoringWs = new WebSocket(`${protocol}//${location.host}/ws/monitoring`);
+        monitoringWs = new WebSocket(`${protocol}//${location.host}/ws/monitoring${tokenQuery}`);
         monitoringWs.onmessage = (event) => {
             const data = JSON.parse(event.data);
             updateMonitoringUI(data);

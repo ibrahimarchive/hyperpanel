@@ -118,11 +118,14 @@ class ConnectionManager:
             pass
 
     async def broadcast(self, data: dict):
-        for connection in self.active_connections:
+        disconnected = []
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(data)
             except Exception:
-                pass
+                disconnected.append(connection)
+        for conn in disconnected:
+            self.disconnect(conn)
 
 
 manager = ConnectionManager()
@@ -131,6 +134,16 @@ manager = ConnectionManager()
 @app.websocket("/ws/monitoring")
 async def monitoring_websocket(websocket: WebSocket):
     """Real-time system monitoring via WebSocket."""
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008)
+        return
+
+    payload = decode_token(token)
+    if not payload or "sub" not in payload:
+        await websocket.close(code=1008)
+        return
+
     await manager.connect(websocket)
     try:
         while True:

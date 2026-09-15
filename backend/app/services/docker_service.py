@@ -122,16 +122,19 @@ class DockerService:
         if action not in ("start", "stop", "restart", "remove"):
             return {"success": False, "error": f"Invalid action: {action}"}
 
-        cmd = f"docker {action}"
+        q_id = shlex.quote(container_id)
+        cmd = f"docker {action} {q_id}"
         if action == "remove":
-            cmd = "docker rm -f"
+            cmd = f"docker rm -f {q_id}"
 
-        result = await run_sudo(f"{cmd} {container_id}")
+        result = await run_sudo(cmd)
         return {"success": result.success, "error": result.stderr if not result.success else None}
 
     async def get_container_logs(self, container_id: str, tail: int = 100) -> str:
         """Get logs from a container."""
-        result = await run_sudo(f"docker logs --tail {tail} {container_id}")
+        safe_tail = int(tail) if isinstance(tail, int) or str(tail).isdigit() else 100
+        q_id = shlex.quote(container_id)
+        result = await run_sudo(f"docker logs --tail {safe_tail} {q_id}")
         if result.success:
             return result.stdout + result.stderr
         return result.stderr or "Failed to get logs"
@@ -145,26 +148,29 @@ class DockerService:
         env_vars: Optional[str] = None,
         restart_policy: str = "unless-stopped",
     ) -> dict:
-        """Create and start a new container."""
-        cmd = f"docker run -d --restart {restart_policy}"
+        """Create and start a new container safely."""
+        valid_policies = ("no", "always", "on-failure", "unless-stopped")
+        safe_policy = restart_policy if restart_policy in valid_policies else "unless-stopped"
+
+        cmd = f"docker run -d --restart {shlex.quote(safe_policy)}"
         if name:
-            cmd += f" --name {name}"
+            cmd += f" --name {shlex.quote(name)}"
         if ports:
             for p in ports.split(","):
                 p = p.strip()
-                if p:
-                    cmd += f" -p {p}"
+                if p and re.match(r"^[\d:-]+/?[a-z]*$", p):
+                    cmd += f" -p {shlex.quote(p)}"
         if volumes:
             for v in volumes.split(","):
                 v = v.strip()
                 if v:
-                    cmd += f" -v {v}"
+                    cmd += f" -v {shlex.quote(v)}"
         if env_vars:
             for e in env_vars.split(","):
                 e = e.strip()
                 if e:
-                    cmd += f" -e {e}"
-        cmd += f" {image}"
+                    cmd += f" -e {shlex.quote(e)}"
+        cmd += f" {shlex.quote(image)}"
 
         result = await run_sudo(cmd, shell=True)
         if result.success:
@@ -194,12 +200,14 @@ class DockerService:
 
     async def pull_image(self, image: str) -> dict:
         """Pull a Docker image."""
-        result = await run_sudo(f"docker pull {image}", timeout=300)
+        q_img = shlex.quote(image)
+        result = await run_sudo(f"docker pull {q_img}", timeout=300)
         return {"success": result.success, "error": result.stderr if not result.success else None}
 
     async def remove_image(self, image_id: str) -> dict:
         """Remove a Docker image."""
-        result = await run_sudo(f"docker rmi -f {image_id}")
+        q_id = shlex.quote(image_id)
+        result = await run_sudo(f"docker rmi -f {q_id}")
         return {"success": result.success, "error": result.stderr if not result.success else None}
 
 

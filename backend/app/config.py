@@ -7,9 +7,12 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+ENV_FILE_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(ENV_FILE_PATH),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -21,8 +24,9 @@ class Settings(BaseSettings):
     PANEL_SSL_CERT: str = ""
     PANEL_SSL_KEY: str = ""
 
-    # Security
+    # Security & CORS
     SECRET_KEY: str = "dev-secret-key-change-in-production"
+    CORS_ORIGINS: str = "*"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7

@@ -6,6 +6,7 @@ Provides directory listing, file CRUD, upload/download, and archive operations.
 import os
 import stat
 import logging
+import shlex
 import mimetypes
 from pathlib import Path
 from datetime import datetime
@@ -157,7 +158,7 @@ class FileService:
             return {"success": False, "error": str(e)}
 
     async def compress(self, base_dir: str, paths: list, archive_name: str) -> dict:
-        """Compress files/directories into a tar.gz archive."""
+        """Compress files/directories into a tar.gz archive safely."""
         safe_paths = []
         for p in paths:
             sp = sanitize_path(p, base_dir)
@@ -168,27 +169,40 @@ class FileService:
             return {"success": False, "error": "No valid paths to compress"}
 
         output = Path(base_dir) / archive_name
-        items = " ".join(f"'{p}'" for p in safe_paths)
-        result = await run_command(f"tar -czf '{output}' -C '{base_dir}' {items}", shell=True)
+        q_output = shlex.quote(str(output))
+        q_base = shlex.quote(base_dir)
+        q_items = " ".join(shlex.quote(p) for p in safe_paths)
+
+        result = await run_command(f"tar -czf {q_output} -C {q_base} {q_items}", shell=True)
         return {"success": result.success, "archive": str(output), "error": result.stderr if not result.success else None}
 
     async def extract(self, base_dir: str, archive_path: str, dest: str = "") -> dict:
-        """Extract an archive."""
+        """Extract an archive safely."""
         safe_archive = sanitize_path(archive_path, base_dir)
         if not safe_archive:
             return {"success": False, "error": "Invalid archive path"}
 
         dest_path = Path(base_dir) / dest if dest else Path(base_dir)
-        result = await run_command(f"tar -xzf '{safe_archive}' -C '{dest_path}'")
+        q_archive = shlex.quote(safe_archive)
+        q_dest = shlex.quote(str(dest_path))
+
+        result = await run_command(f"tar -xzf {q_archive} -C {q_dest}")
         return {"success": result.success, "error": result.stderr if not result.success else None}
 
     async def change_permissions(self, base_dir: str, relative_path: str, mode: str) -> dict:
-        """Change file permissions (chmod)."""
+        """Change file permissions (chmod) safely."""
+        import re
         safe_path = sanitize_path(relative_path, base_dir)
         if not safe_path:
             return {"success": False, "error": "Invalid path"}
 
-        result = await run_sudo(f"chmod {mode} '{safe_path}'")
+        if not re.match(r"^[0-7]{3,4}$", str(mode).strip()):
+            return {"success": False, "error": "Invalid permission mode (must be octal like 755 or 644)"}
+
+        q_mode = shlex.quote(str(mode).strip())
+        q_path = shlex.quote(safe_path)
+
+        result = await run_sudo(f"chmod {q_mode} {q_path}")
         return {"success": result.success}
 
 
