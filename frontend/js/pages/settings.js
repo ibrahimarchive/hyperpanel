@@ -775,17 +775,17 @@ async function checkForUpdates(silent = false) {
 
 async function triggerUpdate(version) {
     confirmModal(
-        `Install Update ${version}`,
-        `Are you sure you want to update HyperPanel to official release <strong>${version}</strong>?<br><br>
-         The update script will execute cleanly in the background. The panel may briefly disconnect for a few seconds while restarting.`,
+        `Install Update ${version || 'Latest'}`,
+        `Are you sure you want to update HyperPanel to official release <strong>${version || 'latest'}</strong>?<br><br>
+         The update script will execute in the background. The panel service will restart automatically once dependencies are updated.`,
         async () => {
             try {
                 openModal('Updating HyperPanel', `
                     <div style="text-align:center;padding:var(--space-5)">
                         <div class="spinner spinner-lg" style="margin:0 auto var(--space-4) auto"></div>
-                        <h3>Applying Update ${version}...</h3>
+                        <h3 id="update-modal-title">Applying Update ${version || ''}...</h3>
                         <p style="color:var(--text-secondary);font-size:var(--text-xs);margin-top:var(--space-2)" id="update-poll-status">
-                            Downloading official release and updating dependencies. Please do not close this window.
+                            Downloading update package and applying changes. Please do not close this window.
                         </p>
                     </div>
                 `, '');
@@ -793,34 +793,55 @@ async function triggerUpdate(version) {
                 const res = await API.post('/api/updates/trigger', { version });
 
                 let attempts = 0;
-                const maxAttempts = 40;
-                const pollInterval = setInterval(async () => {
-                    attempts++;
-                    const statusEl = document.getElementById('update-poll-status');
-                    if (statusEl) {
-                        statusEl.textContent = `Waiting for panel service restart (attempt ${attempts}/${maxAttempts})...`;
-                    }
+                const maxAttempts = 50;
+                let serverWentDown = false;
 
-                    try {
-                        const res = await fetch('/api/health?t=' + Date.now());
-                        if (res.ok) {
-                            clearInterval(pollInterval);
-                            if (statusEl) statusEl.textContent = 'Update applied successfully! Refreshing...';
-                            setTimeout(() => {
-                                window.location.reload(true);
-                            }, 1200);
+                // Wait 4 seconds for backend update script to begin before checking server health
+                setTimeout(() => {
+                    const pollInterval = setInterval(async () => {
+                        attempts++;
+                        const statusEl = document.getElementById('update-poll-status');
+
+                        try {
+                            const res = await fetch('/api/health?t=' + Date.now(), { cache: 'no-store' });
+                            if (res.ok) {
+                                if (serverWentDown || attempts >= 3) {
+                                    clearInterval(pollInterval);
+                                    if (statusEl) {
+                                        statusEl.innerHTML = `<span style="color:var(--success-400);font-weight:600">Update complete! Reloading panel...</span>`;
+                                    }
+                                    setTimeout(() => {
+                                        window.location.reload(true);
+                                    }, 1200);
+                                    return;
+                                }
+                            } else {
+                                serverWentDown = true;
+                            }
+                        } catch (err) {
+                            serverWentDown = true;
                         }
-                    } catch (err) {
-                        // Restarting
-                    }
 
-                    if (attempts >= maxAttempts) {
-                        clearInterval(pollInterval);
                         if (statusEl) {
-                            statusEl.innerHTML = `<span style="color:var(--warning-400)">Update script was executed. If the panel does not reload automatically, please refresh the page manually.</span>`;
+                            if (serverWentDown) {
+                                statusEl.textContent = `Panel service is restarting... reconnecting (attempt ${attempts}/${maxAttempts})`;
+                            } else {
+                                statusEl.textContent = `Applying release changes & updating dependencies (attempt ${attempts}/${maxAttempts})...`;
+                            }
                         }
-                    }
-                }, 2000);
+
+                        if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            if (statusEl) {
+                                statusEl.innerHTML = `
+                                    <div style="margin-top:var(--space-2)">
+                                        <span style="color:var(--warning-400);display:block;margin-bottom:var(--space-3)">Update process completed. If page does not refresh automatically:</span>
+                                        <button class="btn btn-primary btn-sm" onclick="window.location.reload(true)">Reload Panel Now</button>
+                                    </div>`;
+                            }
+                        }
+                    }, 2500);
+                }, 4000);
 
             } catch (e) {
                 closeModal();
@@ -830,3 +851,4 @@ async function triggerUpdate(version) {
         'primary'
     );
 }
+

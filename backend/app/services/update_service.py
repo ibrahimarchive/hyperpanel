@@ -132,13 +132,12 @@ class UpdateService:
         Trigger a detached background update script that checks out the specified release tag,
         updates dependencies, syncs Nginx, and restarts the systemd service without killing itself.
         """
+        import os
         import re
         panel_path = str(self.panel_dir).replace("\\", "/")
         tag = target_tag.strip() if target_tag else ""
         if tag and not re.match(r"^[a-zA-Z0-9._-]+$", tag):
             return {"status": "error", "message": "Invalid version tag format"}
-
-        safe_tag = tag
 
         script_content = f"""#!/bin/bash
 exec > /tmp/hyperpanel_update.log 2>&1
@@ -148,47 +147,59 @@ echo "Target Tag: {tag or 'latest-main'}"
 # Sleep 2 seconds to allow the HTTP response to be returned to the client
 sleep 2
 
-cd "{panel_path}" || cd /opt/hyperpanel || exit 1
+PANEL_DIR="{panel_path}"
+[ -d "$PANEL_DIR" ] || PANEL_DIR="/opt/hyperpanel"
+cd "$PANEL_DIR" || exit 1
 
-echo "Fetching git tags..."
-git fetch --tags --force origin
-git fetch --force origin main
+# Configure safe git directory
+git config --global --add safe.directory "$PANEL_DIR" 2>/dev/null || true
+git config --global --add safe.directory "*" 2>/dev/null || true
 
-echo "Checking out {tag or 'latest'}..."
-git checkout -B "{tag}" "tags/{tag}" 2>/dev/null || git checkout -B "{tag}" "{tag}" 2>/dev/null || git reset --hard origin/main
+if [ -f "$PANEL_DIR/update.sh" ]; then
+    echo "Delegating update to $PANEL_DIR/update.sh..."
+    bash "$PANEL_DIR/update.sh" "{tag}"
+else
+    echo "Running inline fallback update..."
+    git fetch --tags --force origin 2>/dev/null || true
+    git fetch --force origin main 2>/dev/null || true
 
-# Make sure scripts remain executable
-chmod +x install.sh update.sh 2>/dev/null || true
+    if [ -n "{tag}" ]; then
+        git checkout -B "{tag}" "tags/{tag}" 2>/dev/null || git checkout -B "{tag}" "{tag}" 2>/dev/null || git reset --hard origin/main
+    else
+        git reset --hard origin/main
+    fi
 
-# Update Python dependencies (must run from backend dir)
-if [ -f "backend/requirements.txt" ] && [ -d "backend/venv" ]; then
-    echo "Updating dependencies..."
-    cd backend
-    ./venv/bin/pip install -r requirements.txt -q
+    chmod +x install.sh update.sh 2>/dev/null || true
+
+    if [ -d "backend/venv" ]; then
+        cd backend
+        ./venv/bin/pip install -r requirements.txt -q 2>/dev/null || true
+        ./venv/bin/python3 -c "import asyncio; from app.database import init_db; asyncio.run(init_db())" 2>/dev/null || true
+        ./venv/bin/python3 -c "import asyncio; from app.services.panel_settings_service import panel_settings_service; asyncio.run(panel_settings_service.sync_nginx_config())" 2>/dev/null || true
+        cd "$PANEL_DIR"
+    fi
+
+    echo "Reloading Nginx and restarting HyperPanel service..."
+    nginx -t && systemctl reload nginx 2>/dev/null || true
+    systemctl restart hyperpanel
 fi
-
-# Pre-initialize DB migrations and sync Nginx proxy (must run from backend dir)
-if [ -d "venv" ]; then
-    ./venv/bin/python3 -c "import asyncio; from app.database import init_db; asyncio.run(init_db())" 2>/dev/null || true
-    ./venv/bin/python3 -c "import asyncio; from app.services.panel_settings_service import panel_settings_service; asyncio.run(panel_settings_service.sync_nginx_config())" 2>/dev/null || true
-fi
-cd "{panel_path}" 2>/dev/null || cd /opt/hyperpanel 2>/dev/null || true
-
-echo "Reloading Nginx and restarting HyperPanel service..."
-nginx -t && systemctl reload nginx 2>/dev/null || true
-systemctl restart hyperpanel
 
 echo "=== Update Completed Successfully ==="
 """
 
-        # Write script to temporary location
+        # Write script to temporary location safely
         script_file = "/tmp/hyperpanel_update_runner.sh"
-        write_cmd = f"cat << 'EOF' > {script_file}\n{script_content}\nEOF\nchmod +x {script_file}"
-        await run_sudo(write_cmd, shell=True)
+        try:
+            with open(script_file, "w") as f:
+                f.write(script_content)
+            os.chmod(script_file, 0o755)
+        except Exception:
+            write_cmd = f"bash -c \"cat << 'EOF' > {script_file}\n{script_content}\nEOF\nchmod +x {script_file}\""
+            await run_sudo(write_cmd, shell=True)
 
         # Launch detached via nohup
         launch_cmd = f"nohup bash {script_file} > /tmp/hyperpanel_update.log 2>&1 &"
-        res = await run_sudo(launch_cmd, shell=True)
+        await run_sudo(launch_cmd, shell=True)
 
         logger.info(f"Update launched for tag '{tag}'")
         return {
@@ -200,3 +211,4 @@ echo "=== Update Completed Successfully ==="
 
 # Singleton
 update_service = UpdateService()
+

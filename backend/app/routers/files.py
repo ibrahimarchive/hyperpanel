@@ -126,11 +126,14 @@ async def upload_file(
 
     os.makedirs(os.path.dirname(validated_target), exist_ok=True)
 
-    content = await file.read()
+    total_bytes = 0
     with open(validated_target, "wb") as f:
-        f.write(content)
+        while chunk := await file.read(1024 * 1024):
+            f.write(chunk)
+            total_bytes += len(chunk)
 
-    return {"success": True, "filename": safe_filename, "size": len(content)}
+    return {"success": True, "filename": safe_filename, "size": total_bytes}
+
 
 
 @router.get("/download")

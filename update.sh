@@ -55,6 +55,8 @@ tar -czf "$BACKUP_FILE" -C "$PANEL_DIR" backend/.env hyperpanel.db 2>/dev/null |
 echo -e "${GREEN}✓ Pre-update backup saved to ${BACKUP_FILE}${NC}"
 
 echo -e "\n${CYAN}[1/4] Fetching latest tags and commits...${NC}"
+git config --global --add safe.directory "$PANEL_DIR" 2>/dev/null || true
+git config --global --add safe.directory "*" 2>/dev/null || true
 git fetch --tags --force origin
 git fetch --force origin main
 

@@ -13,7 +13,7 @@ async function renderFiles() {
             <div class="page-header"><div class="page-header-left"><h1>File Manager</h1><p>Browse and manage server files</p></div>
             <div class="page-header-actions">
                 <button class="btn btn-secondary" onclick="showNewFolderModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> New Folder</button>
-                <label class="btn btn-primary" style="cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload<input type="file" style="display:none" onchange="uploadFile(this.files[0])"></label>
+                <label class="btn btn-primary" style="cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload<input type="file" style="display:none" onchange="uploadFile(this.files[0], this)"></label>
             </div></div>
 
             <div class="file-toolbar">
@@ -72,16 +72,28 @@ async function saveFile(path) {
     } catch (e) { showToast('Error', e.message, 'error'); }
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, inputEl) {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
     formData.append('path', currentFilePath);
     try {
+        showToast('Uploading', `Uploading ${file.name}...`, 'info');
         const res = await fetch('/api/files/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${API.getToken()}` }, body: formData });
-        if (res.ok) { showToast('Uploaded', `${file.name} uploaded`, 'success'); renderFiles(); } else { const err = await res.json(); showToast('Error', err.detail, 'error'); }
-    } catch (e) { showToast('Error', e.message, 'error'); }
+        if (res.ok) {
+            showToast('Uploaded', `${file.name} uploaded successfully`, 'success');
+            renderFiles();
+        } else {
+            const err = await res.json();
+            showToast('Error', err.detail || 'Failed to upload file', 'error');
+        }
+    } catch (e) {
+        showToast('Error', e.message, 'error');
+    } finally {
+        if (inputEl) inputEl.value = '';
+    }
 }
+
 
 function showNewFolderModal() {
     openModal('New Folder', `<div class="form-group"><label class="form-label">Folder Name</label><input type="text" class="form-input" id="new-folder-name" placeholder="my-folder"></div>`,
