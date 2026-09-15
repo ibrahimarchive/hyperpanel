@@ -22,16 +22,31 @@ class SSLService:
     async def issue_letsencrypt(self, domain: str, email: str = "") -> dict:
         """
         Issue a Let's Encrypt certificate using certbot.
-        Uses the Nginx plugin for automatic verification and installation.
+        Tries Nginx plugin first, falls back to webroot verification.
         """
         email_flag = f"--email {email.strip()}" if email and is_valid_acme_email(email) else "--register-unsafely-without-email"
+        
+        # Try --nginx plugin first
         cmd = (
             f"certbot certonly --nginx -d {domain} "
             f"{email_flag} --agree-tos --non-interactive --expand"
         )
         result = await run_sudo(cmd, timeout=120)
 
+        # Fallback to --webroot mode if --nginx plugin fails
+        if not result.success:
+            doc_root = Path(settings.WEBSITES_ROOT) / domain / "public_html"
+            await run_sudo(f"mkdir -p {doc_root}/.well-known/acme-challenge", shell=True)
+            await run_sudo(f"chown -R www-data:www-data {doc_root}/.well-known 2>/dev/null || true", shell=True)
+            cmd_wb = (
+                f"certbot certonly --webroot -w {doc_root} -d {domain} "
+                f"{email_flag} --agree-tos --non-interactive --expand"
+            )
+            result = await run_sudo(cmd_wb, timeout=120)
+
         if result.success:
+            # Grant read access to /etc/letsencrypt/live and archive so webserver & panel process can access certs
+            await run_sudo("chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true")
             cert_dir = Path(settings.SSL_CERTS_DIR) / domain
             return {
                 "success": True,
@@ -39,7 +54,7 @@ class SSLService:
                 "key_path": str(cert_dir / "privkey.pem"),
                 "chain_path": str(cert_dir / "chain.pem"),
             }
-        return {"success": False, "error": result.stderr}
+        return {"success": False, "error": result.stderr or result.stdout}
 
     async def upload_certificate(
         self,

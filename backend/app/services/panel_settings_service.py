@@ -125,7 +125,8 @@ class PanelSettingsService:
             days_passed = max(0, total_days - days_remaining)
             validity_percent = max(0, min(100, int((days_remaining / total_days) * 100)))
 
-            is_trusted = "Let's Encrypt" in issuer_name or "DigiCert" in issuer_name or "Cloudflare" in issuer_name
+            is_self_signed = (common_name == issuer_name) or ("HyperPanel" in issuer_name)
+            is_trusted = not is_self_signed
             status = "Trusted" if is_trusted else "Self-signed"
 
             return {
@@ -227,17 +228,17 @@ class PanelSettingsService:
         if panel_domain:
             if ssl_enabled and os.path.exists(cert_path):
                 domain_block = f"""
-server {{
-    listen 80;
-    listen 443 ssl;
-    server_name {panel_domain};
+    server {{
+        listen 80;
+        listen 443 ssl;
+        server_name {panel_domain};
 
-    ssl_certificate {cert_path};
-    ssl_certificate_key {key_path};
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_certificate {cert_path};
+        ssl_certificate_key {key_path};
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
 
-    client_max_body_size 500M;
+        client_max_body_size 500M;
 
         location / {{
             proxy_pass http://127.0.0.1:{settings.PANEL_INTERNAL_PORT};
@@ -360,14 +361,12 @@ server {{
         le_error = None
 
         if domain and domain != "localhost":
-            # Attempt automatic Let's Encrypt certificate issuance
             logger.info(f"Attempting automatic Let's Encrypt SSL issuance for panel domain '{domain}'")
             le_res = await self.issue_letsencrypt_panel()
             if le_res.get("success"):
                 le_success = True
             else:
                 le_error = le_res.get("error")
-                # Fallback to self-signed cert if LE fails (e.g., DNS not propagated yet)
                 cert_path = Path(self._data.get("ssl_cert_path", str(SSL_DIR / "panel.crt")))
                 if not cert_path.exists() or cert_path.stat().st_size == 0:
                     self.generate_self_signed_cert(domain=domain)
@@ -424,7 +423,7 @@ server {{
 
         from app.utils.validators import is_valid_acme_email
 
-        # Run certbot
+        # Run certbot (try Nginx plugin first)
         email_flag = f"--email {email.strip()}" if email and is_valid_acme_email(email) else "--register-unsafely-without-email"
         cmd = (
             f"certbot certonly --nginx -d {domain} "
@@ -433,18 +432,34 @@ server {{
         result = await run_sudo(cmd, timeout=120)
 
         if not result.success:
+            # Fallback: webroot mode via default web root
+            webroot_dir = "/var/www/html"
+            await run_sudo(f"mkdir -p {webroot_dir}/.well-known/acme-challenge", shell=True)
+            cmd_wb = (
+                f"certbot certonly --webroot -w {webroot_dir} -d {domain} "
+                f"{email_flag} --agree-tos --non-interactive --expand"
+            )
+            result = await run_sudo(cmd_wb, timeout=120)
+
+        if not result.success:
             return {
                 "success": False,
                 "error": f"Let's Encrypt issuance failed: {result.stderr or result.stdout}",
             }
 
-        # Certbot stores certs here
         le_cert = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
         le_key = f"/etc/letsencrypt/live/{domain}/privkey.pem"
 
-        # Update panel settings to use the LE cert
-        self._data["ssl_cert_path"] = le_cert
-        self._data["ssl_key_path"] = le_key
+        # Copy cert files to panel SSL dir so process can read them
+        panel_cert = SSL_DIR / "panel.crt"
+        panel_key = SSL_DIR / "panel.key"
+
+        await run_sudo(f"chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true")
+        await run_sudo(f"cp -L {le_cert} {panel_cert} && cp -L {le_key} {panel_key}", shell=True)
+        await run_sudo(f"chmod 644 {panel_cert} && chmod 600 {panel_key}")
+
+        self._data["ssl_cert_path"] = str(panel_cert)
+        self._data["ssl_key_path"] = str(panel_key)
         self._data["ssl_enabled"] = True
         self._save_settings()
 
