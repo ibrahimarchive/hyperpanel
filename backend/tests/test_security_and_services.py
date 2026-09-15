@@ -100,3 +100,11 @@ def test_token_revocation():
     revoke_token(token)
     assert is_token_revoked(token) is True
     assert decode_token(token) is None
+
+
+def test_acme_email_validation():
+    from app.utils.validators import is_valid_acme_email
+    assert is_valid_acme_email("user@example.com") is True
+    assert is_valid_acme_email("admin@localhost") is False
+    assert is_valid_acme_email("admin@localhost.localdomain") is False
+    assert is_valid_acme_email("") is False

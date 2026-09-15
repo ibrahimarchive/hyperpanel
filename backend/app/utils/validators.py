@@ -71,3 +71,12 @@ def sanitize_path(path: str, base_dir: str) -> Optional[str]:
     except (ValueError, OSError):
         return None
 
+
+def is_valid_acme_email(email: str) -> bool:
+    """Validate whether an email address is valid for ACME / Let's Encrypt registration (rejects @localhost)."""
+    if not email or "@localhost" in email.lower() or "localhost" in email.lower():
+        return False
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email.strip()))
+
+

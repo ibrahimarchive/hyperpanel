@@ -11,6 +11,8 @@ from typing import Optional
 from app.config import settings
 from app.utils.command import run_sudo
 
+from app.utils.validators import is_valid_acme_email
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ class SSLService:
         Issue a Let's Encrypt certificate using certbot.
         Uses the Nginx plugin for automatic verification and installation.
         """
-        email_flag = f"--email {email}" if email else "--register-unsafely-without-email"
+        email_flag = f"--email {email.strip()}" if email and is_valid_acme_email(email) else "--register-unsafely-without-email"
         cmd = (
             f"certbot certonly --nginx -d {domain} "
             f"{email_flag} --agree-tos --non-interactive --expand"

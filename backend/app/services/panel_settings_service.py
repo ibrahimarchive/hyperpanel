@@ -422,8 +422,10 @@ server {{
         if not domain:
             return {"success": False, "error": "Set a panel domain first before requesting Let's Encrypt SSL."}
 
+        from app.utils.validators import is_valid_acme_email
+
         # Run certbot
-        email_flag = f"--email {email}" if email else "--register-unsafely-without-email"
+        email_flag = f"--email {email.strip()}" if email and is_valid_acme_email(email) else "--register-unsafely-without-email"
         cmd = (
             f"certbot certonly --nginx -d {domain} "
             f"{email_flag} --agree-tos --non-interactive --expand"
