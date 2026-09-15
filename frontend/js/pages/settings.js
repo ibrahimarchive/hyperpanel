@@ -342,7 +342,6 @@ function showModifySslModal() {
     openModal('Configure Panel SSL', `
         <div class="tabs" style="margin-bottom:var(--space-4)">
             <div class="tab active" onclick="showSslTab('letsencrypt', this)">Let's Encrypt SSL</div>
-            <div class="tab" onclick="showSslTab('self', this)">10-Year Self-Signed</div>
             <div class="tab" onclick="showSslTab('custom', this)">Custom PEM Certificate</div>
         </div>
 
@@ -388,17 +387,7 @@ function showModifySslModal() {
             `}
         </div>
 
-        <!-- 2. Self-Signed Tab -->
-        <div id="tab-ssl-self" style="display:none">
-            <p style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-4);line-height:1.5">
-                Generate a fast, 10-year (3650 days) RSA-2048 self-signed certificate for the control panel. This encrypts all traffic immediately.
-            </p>
-            <button class="btn btn-primary" onclick="submitSelfSignedSsl()">
-                Regenerate 10-Year Certificate
-            </button>
-        </div>
-
-        <!-- 3. Custom PEM Tab -->
+        <!-- 2. Custom PEM Tab -->
         <div id="tab-ssl-custom" style="display:none">
             <p style="font-size:var(--text-xs);color:var(--text-secondary);margin-bottom:var(--space-3)">
                 Paste your custom SSL Certificate (CRT/PEM) and Private Key (KEY/PEM) to use trusted enterprise certificates:
@@ -422,7 +411,6 @@ function showSslTab(tab, el) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
     document.getElementById('tab-ssl-letsencrypt').style.display = tab === 'letsencrypt' ? 'block' : 'none';
-    document.getElementById('tab-ssl-self').style.display = tab === 'self' ? 'block' : 'none';
     document.getElementById('tab-ssl-custom').style.display = tab === 'custom' ? 'block' : 'none';
 }
 
