@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./hyperpanel.db"
 
     # Server
-    PANEL_HOST: str = "0.0.0.0"
+    PANEL_HOST: str = "127.0.0.1"
+    PANEL_INTERNAL_PORT: int = 8000
     PANEL_PORT: int = 8443
     DEBUG: bool = False
 

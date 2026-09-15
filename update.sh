@@ -72,15 +72,33 @@ if [ -d "$PANEL_DIR/backend/venv" ]; then
     cd "$PANEL_DIR"
 fi
 
-echo -e "\n${CYAN}[4/4] Reloading Nginx and restarting HyperPanel service...${NC}"
+echo -e "\n${CYAN}[4/4] Updating systemd service, reloading Nginx and restarting HyperPanel...${NC}"
+
+cat > /etc/systemd/system/hyperpanel.service << EOF
+[Unit]
+Description=HyperPanel — Server Control Panel
+After=network.target mysql.service mariadb.service nginx.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=$PANEL_DIR/backend
+Environment="PATH=$PANEL_DIR/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+ExecStart=$PANEL_DIR/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
 nginx -t && systemctl reload nginx 2>/dev/null || true
-if systemctl is-active --quiet hyperpanel; then
-    systemctl restart hyperpanel
-    echo -e "${GREEN}✓ HyperPanel service restarted successfully${NC}"
-else
-    echo -e "${YELLOW}! HyperPanel systemd service is not currently running. Starting...${NC}"
-    systemctl start hyperpanel || true
-fi
+systemctl restart hyperpanel
+echo -e "${GREEN}✓ HyperPanel service restarted successfully${NC}"
 
 echo ""
 echo -e "${GREEN}${BOLD}✅ HyperPanel update complete!${NC}"
