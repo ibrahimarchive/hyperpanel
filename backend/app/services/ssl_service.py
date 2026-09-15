@@ -4,6 +4,7 @@ Handles Let's Encrypt issuance via certbot and custom certificate uploads.
 """
 
 import logging
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -45,17 +46,28 @@ class SSLService:
         key_content: str,
         chain_content: Optional[str] = None,
     ) -> dict:
-        """Upload and install a custom SSL certificate."""
+        """Upload and install a custom SSL certificate safely using temp files."""
         cert_dir = Path(f"/etc/ssl/hyperpanel/{domain}")
         await run_sudo(f"mkdir -p {cert_dir}")
 
-        # Write certificate files
         cert_path = cert_dir / "cert.pem"
         key_path = cert_dir / "privkey.pem"
 
-        await run_sudo(f"bash -c 'cat > {cert_path} << \"EOF\"\n{cert_content}\nEOF'", shell=True)
-        await run_sudo(f"bash -c 'cat > {key_path} << \"EOF\"\n{key_content}\nEOF'", shell=True)
-        await run_sudo(f"chmod 600 {key_path}")
+        # Write cert to temp file and move with sudo
+        with tempfile.NamedTemporaryFile("w", delete=False) as tf_cert:
+            tf_cert.write(cert_content.strip() + "\n")
+            tmp_cert = tf_cert.name
+
+        with tempfile.NamedTemporaryFile("w", delete=False) as tf_key:
+            tf_key.write(key_content.strip() + "\n")
+            tmp_key = tf_key.name
+
+        try:
+            await run_sudo(f"mv {tmp_cert} {cert_path}")
+            await run_sudo(f"mv {tmp_key} {key_path}")
+            await run_sudo(f"chmod 600 {key_path}")
+        finally:
+            await run_sudo(f"rm -f {tmp_cert} {tmp_key}")
 
         result = {
             "success": True,
@@ -63,10 +75,16 @@ class SSLService:
             "key_path": str(key_path),
         }
 
-        if chain_content:
+        if chain_content and chain_content.strip():
             chain_path = cert_dir / "chain.pem"
-            await run_sudo(f"bash -c 'cat > {chain_path} << \"EOF\"\n{chain_content}\nEOF'", shell=True)
-            result["chain_path"] = str(chain_path)
+            with tempfile.NamedTemporaryFile("w", delete=False) as tf_chain:
+                tf_chain.write(chain_content.strip() + "\n")
+                tmp_chain = tf_chain.name
+            try:
+                await run_sudo(f"mv {tmp_chain} {chain_path}")
+                result["chain_path"] = str(chain_path)
+            finally:
+                await run_sudo(f"rm -f {tmp_chain}")
 
         return result
 

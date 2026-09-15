@@ -388,6 +388,45 @@ server {{
             "message": f"Panel port updated to {port}. Access via http(s)://<ip>:{port}",
         }
 
+    async def issue_letsencrypt_panel(self, email: str = "") -> dict:
+        """Issue a Let's Encrypt certificate for the panel domain and install it."""
+        domain = self._data.get("panel_domain", "").strip()
+        if not domain:
+            return {"success": False, "error": "Set a panel domain first before requesting Let's Encrypt SSL."}
+
+        # Run certbot
+        email_flag = f"--email {email}" if email else "--register-unsafely-without-email"
+        cmd = (
+            f"certbot certonly --nginx -d {domain} "
+            f"{email_flag} --agree-tos --non-interactive --expand"
+        )
+        result = await run_sudo(cmd, timeout=120)
+
+        if not result.success:
+            return {
+                "success": False,
+                "error": f"Let's Encrypt issuance failed: {result.stderr or result.stdout}",
+            }
+
+        # Certbot stores certs here
+        le_cert = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+        le_key = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+
+        # Update panel settings to use the LE cert
+        self._data["ssl_cert_path"] = le_cert
+        self._data["ssl_key_path"] = le_key
+        self._data["ssl_enabled"] = True
+        self._save_settings()
+
+        await self.sync_nginx_config()
+
+        info = self.get_certificate_info()
+        return {
+            "success": True,
+            "certificate": info,
+            "message": f"Let's Encrypt certificate issued and installed for panel domain '{domain}'",
+        }
+
     def get_all_settings(self, username: str = "admin") -> dict:
         """Return full panel configuration for frontend consumption."""
         cert_info = self.get_certificate_info()

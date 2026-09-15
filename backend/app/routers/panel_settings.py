@@ -34,6 +34,10 @@ class CustomSSLRequest(BaseModel):
     private_key: str
 
 
+class LetsEncryptPanelRequest(BaseModel):
+    email: str = ""
+
+
 class UsernameUpdateRequest(BaseModel):
     username: str
     password: str
@@ -166,6 +170,32 @@ async def generate_self_signed(
     await db.commit()
 
     return {"success": True, "certificate": info, "message": "Self-signed certificate generated"}
+
+
+@router.post("/ssl/letsencrypt")
+async def issue_panel_letsencrypt(
+    data: LetsEncryptPanelRequest = LetsEncryptPanelRequest(),
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Issue a Let's Encrypt certificate for the configured panel domain."""
+    email = data.email.strip() if data.email else (user.email or "")
+    result = await panel_settings_service.issue_letsencrypt_panel(email=email)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to issue Let's Encrypt certificate"))
+
+    log = ActivityLog(
+        user_id=user.id,
+        action="panel.ssl_letsencrypt",
+        category="security",
+        description="Issued Let's Encrypt SSL certificate for panel domain",
+        resource_type="system",
+        resource_name="panel_ssl",
+    )
+    db.add(log)
+    await db.commit()
+
+    return result
 
 
 @router.post("/username")

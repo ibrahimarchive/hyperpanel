@@ -337,13 +337,59 @@ async function togglePanelSsl(enabled) {
 }
 
 function showModifySslModal() {
+    const domain = _panelSettings.panel_domain || '';
+
     openModal('Configure Panel SSL', `
         <div class="tabs" style="margin-bottom:var(--space-4)">
-            <div class="tab active" onclick="showSslTab('self', this)">10-Year Certificate</div>
+            <div class="tab active" onclick="showSslTab('letsencrypt', this)">Let's Encrypt SSL</div>
+            <div class="tab" onclick="showSslTab('self', this)">10-Year Self-Signed</div>
             <div class="tab" onclick="showSslTab('custom', this)">Custom PEM Certificate</div>
         </div>
 
-        <div id="tab-ssl-self">
+        <!-- 1. Let's Encrypt Tab -->
+        <div id="tab-ssl-letsencrypt">
+            ${domain ? `
+                <p style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-3);line-height:1.5">
+                    Issue an official, browser-trusted <strong>Let's Encrypt</strong> SSL certificate for your panel domain <code>${domain}</code>.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">Panel Domain</label>
+                    <input type="text" class="form-input" value="${domain}" readonly style="cursor:default;background:rgba(255,255,255,0.04)">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email for Certificate Expiry Notifications (Optional)</label>
+                    <input type="email" class="form-input" id="panel-le-email" placeholder="admin@${domain}">
+                </div>
+
+                <div class="setting-alert-callout" style="margin-bottom:var(--space-4)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>DNS A-Record for <strong>${domain}</strong> must point to this server's public IP address before issuing.</span>
+                </div>
+
+                <button class="btn btn-primary" id="btn-issue-panel-le" onclick="submitLetsEncryptPanelSsl()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Issue Let's Encrypt Certificate
+                </button>
+            ` : `
+                <div class="setting-alert-callout" style="margin-bottom:var(--space-4)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span><strong>Panel Domain Required:</strong> You must configure a panel domain (e.g. <code>panel.yourdomain.com</code>) under Network & Access settings before Let's Encrypt can issue a certificate.</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Set Panel Domain Now</label>
+                    <div class="setting-input-row">
+                        <input type="text" class="form-input" id="quick-panel-domain" placeholder="panel.example.com">
+                        <button class="btn btn-primary" onclick="saveQuickPanelDomain()">Save Domain</button>
+                    </div>
+                </div>
+            `}
+        </div>
+
+        <!-- 2. Self-Signed Tab -->
+        <div id="tab-ssl-self" style="display:none">
             <p style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-4);line-height:1.5">
                 Generate a fast, 10-year (3650 days) RSA-2048 self-signed certificate for the control panel. This encrypts all traffic immediately.
             </p>
@@ -352,6 +398,7 @@ function showModifySslModal() {
             </button>
         </div>
 
+        <!-- 3. Custom PEM Tab -->
         <div id="tab-ssl-custom" style="display:none">
             <p style="font-size:var(--text-xs);color:var(--text-secondary);margin-bottom:var(--space-3)">
                 Paste your custom SSL Certificate (CRT/PEM) and Private Key (KEY/PEM) to use trusted enterprise certificates:
@@ -374,8 +421,47 @@ function showModifySslModal() {
 function showSslTab(tab, el) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
+    document.getElementById('tab-ssl-letsencrypt').style.display = tab === 'letsencrypt' ? 'block' : 'none';
     document.getElementById('tab-ssl-self').style.display = tab === 'self' ? 'block' : 'none';
     document.getElementById('tab-ssl-custom').style.display = tab === 'custom' ? 'block' : 'none';
+}
+
+async function submitLetsEncryptPanelSsl() {
+    const email = document.getElementById('panel-le-email')?.value?.trim() || '';
+    const btn = document.getElementById('btn-issue-panel-le');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner spinner-sm" style="display:inline-block;vertical-align:middle;margin-right:6px"></span> Issuing Let's Encrypt SSL...`;
+    }
+
+    try {
+        const res = await API.post('/api/settings/panel/ssl/letsencrypt', { email });
+        closeModal();
+        showToast('SSL Issued', res.message || "Let's Encrypt certificate installed for panel domain", 'success');
+        renderSettings();
+    } catch (e) {
+        showToast('SSL Error', e.message, 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Issue Let's Encrypt Certificate`;
+        }
+    }
+}
+
+async function saveQuickPanelDomain() {
+    const domain = document.getElementById('quick-panel-domain')?.value?.trim() || '';
+    if (!domain) {
+        showToast('Validation Error', 'Please enter a valid panel domain name', 'warning');
+        return;
+    }
+    try {
+        await API.post('/api/settings/panel/domain', { domain });
+        showToast('Domain Saved', `Panel domain set to ${domain}`, 'success');
+        _panelSettings.panel_domain = domain;
+        showModifySslModal(); // refresh modal state
+    } catch (e) {
+        showToast('Error', e.message, 'error');
+    }
 }
 
 async function submitSelfSignedSsl() {
